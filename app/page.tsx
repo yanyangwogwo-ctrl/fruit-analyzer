@@ -44,16 +44,16 @@ export default function Home() {
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-6 text-center">
       <h1 className="text-4xl font-bold tracking-tight">
-          水果包裝文字解讀師v0.1
+          水果品種鑑定師v0.1
         </h1>
 
         <p className="mt-4 text-lg text-gray-600">
-          上傳日本水果包裝的照片，幫你閱讀包裝文字，輸出結構化的水果資訊（繁體中文），不用自己查字典。
+          上傳水果（須連包裝），幫你從包裝文字鑑定品種。
         </p>
 
         <section className="mt-8 w-full rounded-2xl border border-gray-200 bg-white p-6 text-left shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">
-            上傳水果包裝照片
+            上傳水果（須連包裝）照片
           </h2>
 
           <p className="mt-2 text-sm text-gray-600">

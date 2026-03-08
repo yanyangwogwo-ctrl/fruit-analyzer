@@ -65,12 +65,20 @@ export default function Home() {
             const formData = new FormData();
             formData.append("image", file);
             const res = await fetch("/api/analyze", { method: "POST", body: formData });
-            const data = (await res.json()) as Record<string, unknown>;
-            if (data.error) {
-              setAnalysisError(String(data.error));
+            const rawText = await res.text();
+            let data: Record<string, unknown>;
+            try {
+              data = JSON.parse(rawText);
+            } catch {
+              throw new Error(
+                `伺服器發生異常 (狀態碼: ${res.status})\n回傳內容: ${rawText.substring(0, 100)}${rawText.length > 100 ? "…" : ""}`
+              );
+            }
+            if (!res.ok) {
+              setAnalysisError(String(data?.error ?? "發生未知錯誤"));
               setHasAnalyzed(true);
-            } else if (!res.ok) {
-              setAnalysisError(data.error ? String(data.error) : "分析失敗");
+            } else if (data.error) {
+              setAnalysisError(String(data.error));
               setHasAnalyzed(true);
             } else {
               setAnalysisResult(normalizeAnalysisResult(data));

@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
+export const maxDuration = 60;
+
 const PROMPT = `You are an expert in fruit packaging. Analyze this image and extract information from any visible text on the packaging (labels, stickers, printed text). The packaging may be from ANY country and in ANY language. Do NOT assume the fruit is Japanese or that the text is Japanese.
 
 Guidelines for extraction:

@@ -3,15 +3,15 @@
 import { useRef, useState } from "react";
 
 type AnalysisResult = {
-  fruit_category: string;
-  fruit_category_ja: string;
-  possible_variety: string;
-  possible_variety_ja: string;
-  origin: string;
-  brand_or_farm: string;
-  grade: string;
-  summary_zh_tw: string;
+  fruit_category_display: string;
+  fruit_category_original: string;
+  possible_variety_display: string;
+  possible_variety_original: string;
+  origin_display: string;
+  brand_or_farm_display: string;
+  grade_display: string;
   season_months: string;
+  summary_zh_tw: string;
   notes: string;
 };
 
@@ -140,7 +140,7 @@ export default function Home() {
           </h2>
 
           <p className="mt-2 text-sm text-gray-600">
-            之後 AI 解析出的水果資訊會顯示在這裡，包括品種、產地、等級、包裝上偵測到的日文文字等等。
+            之後 AI 解析出的水果資訊會顯示在這裡，包括品種、產地、等級、包裝標示等（支援各國語言包裝）。
           </p>
 
           <div className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-6 text-sm text-gray-700">
@@ -165,9 +165,9 @@ export default function Home() {
                       水果類別
                     </dt>
                     <dd className="text-sm">
-                      {analysisResult.fruit_category || "—"}
-                      {analysisResult.fruit_category_ja
-                        ? <span className="text-gray-500">（{analysisResult.fruit_category_ja}）</span>
+                      {analysisResult.fruit_category_display || "—"}
+                      {analysisResult.fruit_category_original
+                        ? <span className="text-gray-500">（{analysisResult.fruit_category_original}）</span>
                         : null}
                     </dd>
                   </div>
@@ -176,9 +176,9 @@ export default function Home() {
                       可能品種
                     </dt>
                     <dd className="text-sm">
-                      {analysisResult.possible_variety || "—"}
-                      {analysisResult.possible_variety_ja
-                        ? <span className="text-gray-500">（{analysisResult.possible_variety_ja}）</span>
+                      {analysisResult.possible_variety_display || "—"}
+                      {analysisResult.possible_variety_original
+                        ? <span className="text-gray-500">（{analysisResult.possible_variety_original}）</span>
                         : null}
                     </dd>
                   </div>
@@ -186,23 +186,19 @@ export default function Home() {
                     <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
                       產地
                     </dt>
-                    <dd className="text-sm">
-                      {analysisResult.origin || "—"}
-                    </dd>
+                    <dd className="text-sm">{analysisResult.origin_display || "—"}</dd>
                   </div>
                   <div className="flex gap-2">
                     <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
                       品牌／農園
                     </dt>
-                    <dd className="text-sm">
-                      {analysisResult.brand_or_farm || "—"}
-                    </dd>
+                    <dd className="text-sm">{analysisResult.brand_or_farm_display || "—"}</dd>
                   </div>
                   <div className="flex gap-2">
                     <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
                       等級
                     </dt>
-                    <dd className="text-sm">{analysisResult.grade || "—"}</dd>
+                    <dd className="text-sm">{analysisResult.grade_display || "—"}</dd>
                   </div>
                   <div className="flex gap-2">
                     <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">

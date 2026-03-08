@@ -1,5 +1,6 @@
 "use client";
 
+import imageCompression from "browser-image-compression";
 import { useRef, useState } from "react";
 
 type AnalysisResult = {
@@ -39,6 +40,7 @@ export default function Home() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -58,12 +60,24 @@ export default function Home() {
           setSelectedFile(file);
           setAnalysisResult(null);
           setAnalysisError(null);
-          setIsAnalyzing(true);
+          setIsCompressing(true);
           setHasAnalyzed(false);
           e.target.value = "";
           try {
+            let fileToSend = file;
+            try {
+              fileToSend = await imageCompression(file, {
+                maxSizeMB: 2,
+                maxWidthOrHeight: 1920,
+                useWebWorker: true,
+              });
+            } catch {
+              fileToSend = file;
+            }
+            setIsCompressing(false);
+            setIsAnalyzing(true);
             const formData = new FormData();
-            formData.append("image", file);
+            formData.append("image", fileToSend);
             const res = await fetch("/api/analyze", { method: "POST", body: formData });
             const rawText = await res.text();
             let data: Record<string, unknown>;
@@ -93,6 +107,7 @@ export default function Home() {
             setAnalysisError(friendly);
             setHasAnalyzed(true);
           } finally {
+            setIsCompressing(false);
             setIsAnalyzing(false);
           }
         }}
@@ -129,7 +144,7 @@ export default function Home() {
             <div className="mt-4">
               <p className="text-xs font-medium text-gray-700">
                 已選擇的圖片預覽
-                {isAnalyzing ? " · 分析中⋯⋯" : ""}
+                {isCompressing ? " · 正在處理／壓縮中" : isAnalyzing ? " · 分析中⋯⋯" : ""}
               </p>
               <div className="mt-2 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
                 <img
@@ -151,7 +166,11 @@ export default function Home() {
           </p>
 
           <div className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-6 text-sm text-gray-700">
-            {isAnalyzing ? (
+            {isCompressing ? (
+              <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50 px-4 py-6 text-sm text-amber-800">
+                正在處理／壓縮中⋯⋯
+              </div>
+            ) : isAnalyzing ? (
               <div className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50 px-4 py-6 text-sm text-emerald-800">
                 正在以 AI 分析包裝文字⋯⋯
               </div>

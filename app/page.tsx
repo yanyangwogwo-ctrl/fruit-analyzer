@@ -118,13 +118,9 @@ export default function Home() {
           水果品種鑑定師v0.1
         </h1>
 
-        <p className="mt-4 text-lg text-gray-600">
-          上傳水果（須連包裝），幫你從包裝文字鑑定品種。
-        </p>
-
         <section className="mt-8 w-full rounded-2xl border border-gray-200 bg-white p-6 text-left shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">
-            上傳水果（須連包裝）照片
+            上傳水果（須連包裝）照片，幫你從包裝文字鑑定品種
           </h2>
 
           <div className="mt-4">
@@ -143,7 +139,7 @@ export default function Home() {
           {previewUrl && (
             <div className="mt-4">
               <p className="text-xs font-medium text-gray-700">
-                已選擇的圖片預覽
+                已選擇的圖片
                 {isCompressing ? " · 正在處理／壓縮中" : isAnalyzing ? " · 分析中⋯⋯" : ""}
               </p>
               <div className="mt-2 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
@@ -158,12 +154,8 @@ export default function Home() {
         </section>
         <section className="mt-10 w-full rounded-2xl bg-gray-50 p-6 text-left shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">
-            分析結果預覽
+            分析結果
           </h2>
-
-          <p className="mt-2 text-sm text-gray-600">
-            之後 AI 分析出的水果資訊會顯示在這裡，包括品種、產地、等級、包裝標示等（支援各國語言包裝）。
-          </p>
 
           <div className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-6 text-sm text-gray-700">
             {isCompressing ? (

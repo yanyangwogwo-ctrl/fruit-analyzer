@@ -31,16 +31,43 @@ export default function Home() {
         type="file"
         accept="image/jpeg,image/jpg,image/png,image/*"
         className="hidden"
-        onChange={(e) => {
+        onChange={async (e) => {
           const file = e.target.files?.[0];
           if (!file) return;
-          setPreviewUrl(URL.createObjectURL(file));
+          const url = URL.createObjectURL(file);
+          setPreviewUrl(url);
           setSelectedFile(file);
-          setHasAnalyzed(false);
-          setIsAnalyzing(false);
           setAnalysisResult(null);
           setAnalysisError(null);
+          setIsAnalyzing(true);
+          setHasAnalyzed(false);
           e.target.value = "";
+          try {
+            const formData = new FormData();
+            formData.append("image", file);
+            const res = await fetch("/api/analyze", { method: "POST", body: formData });
+            const data = (await res.json()) as Record<string, unknown>;
+            if (data.error) {
+              setAnalysisError(String(data.error));
+              setHasAnalyzed(true);
+            } else if (!res.ok) {
+              setAnalysisError(data.error ? String(data.error) : "分析失敗");
+              setHasAnalyzed(true);
+            } else {
+              setAnalysisResult(data as unknown as AnalysisResult);
+              setHasAnalyzed(true);
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : "網路或伺服器錯誤";
+            const friendly =
+              msg === "Failed to fetch"
+                ? "無法連線到伺服器（Failed to fetch）。請確認：① 終端機有執行 npm run dev 且無報錯 ② 網址為 http://localhost:3000 ③ 網路或防火牆未阻擋。"
+                : msg;
+            setAnalysisError(friendly);
+            setHasAnalyzed(true);
+          } finally {
+            setIsAnalyzing(false);
+          }
         }}
       />
     <main className="min-h-screen bg-white text-black">
@@ -69,12 +96,13 @@ export default function Home() {
           </div>
 
           <p className="mt-3 text-xs text-gray-500">
-            選擇圖片後點「開始解析」，會將圖片傳送至後端並以 Gemini 分析包裝文字。
+            選擇或拍攝圖片後會自動開始分析包裝文字。
           </p>
           {previewUrl && (
             <div className="mt-4">
               <p className="text-xs font-medium text-gray-700">
-                已選擇的圖片預覽：
+                已選擇的圖片預覽
+                {isAnalyzing ? " · 分析中⋯⋯" : ""}
               </p>
               <div className="mt-2 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
                 <img
@@ -85,54 +113,6 @@ export default function Home() {
               </div>
             </div>
           )}
-          <div className="mt-4 flex justify-end">
-            <button
-              type="button"
-              disabled={isAnalyzing}
-              onClick={async () => {
-                if (!selectedFile) {
-                  alert("請先選擇一張水果包裝圖片。");
-                  return;
-                }
-                setIsAnalyzing(true);
-                setHasAnalyzed(false);
-                setAnalysisError(null);
-                setAnalysisResult(null);
-                try {
-                  const formData = new FormData();
-                  formData.append("image", selectedFile);
-                  const res = await fetch("/api/analyze", {
-                    method: "POST",
-                    body: formData,
-                  });
-                  const data = (await res.json()) as Record<string, unknown>;
-                  if (data.error) {
-                    setAnalysisError(String(data.error));
-                    setHasAnalyzed(true);
-                  } else if (!res.ok) {
-                    setAnalysisError(data.error ? String(data.error) : "解析失敗");
-                    setHasAnalyzed(true);
-                  } else {
-                    setAnalysisResult(data as unknown as AnalysisResult);
-                    setHasAnalyzed(true);
-                  }
-                } catch (err) {
-                  const msg = err instanceof Error ? err.message : "網路或伺服器錯誤";
-                  const friendly =
-                    msg === "Failed to fetch"
-                      ? "無法連線到伺服器（Failed to fetch）。請確認：① 終端機有執行 npm run dev 且無報錯 ② 網址為 http://localhost:3000 ③ 網路或防火牆未阻擋。"
-                      : msg;
-                  setAnalysisError(friendly);
-                  setHasAnalyzed(true);
-                } finally {
-                  setIsAnalyzing(false);
-                }
-              }}
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
-            >
-              {isAnalyzing ? "解析中⋯⋯" : "開始解析"}
-            </button>
-          </div>
         </section>
         <section className="mt-10 w-full rounded-2xl bg-gray-50 p-6 text-left shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">
@@ -140,13 +120,13 @@ export default function Home() {
           </h2>
 
           <p className="mt-2 text-sm text-gray-600">
-            之後 AI 解析出的水果資訊會顯示在這裡，包括品種、產地、等級、包裝標示等（支援各國語言包裝）。
+            之後 AI 分析出的水果資訊會顯示在這裡，包括品種、產地、等級、包裝標示等（支援各國語言包裝）。
           </p>
 
           <div className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-6 text-sm text-gray-700">
             {isAnalyzing ? (
               <div className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50 px-4 py-6 text-sm text-emerald-800">
-                正在以 Gemini 解析包裝文字⋯⋯
+                正在以 AI 分析包裝文字⋯⋯
               </div>
             ) : hasAnalyzed && analysisError ? (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-sm text-red-800">
@@ -218,7 +198,7 @@ export default function Home() {
               </>
             ) : (
               <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-6 text-sm text-gray-400">
-                尚未執行解析。請先在上方選擇圖片，再點「開始解析」。
+                尚未分析。請在上方選擇或拍攝圖片，將自動開始分析。
               </div>
             )}
           </div>

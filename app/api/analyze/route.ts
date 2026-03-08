@@ -96,7 +96,7 @@ export async function POST(request: Request) {
     const friendly = is429
       ? "已超過目前免費額度或每分鐘請求上限，請稍候約一分鐘再試。"
       : isLocation
-        ? "您目前所在地區不支援使用 Gemini API。請使用 VPN 連到支援地區後再試。"
+        ? "您目前所在地區不支援使用此 AI 服務。請使用 VPN 連到支援地區後再試。"
         : message;
     return NextResponse.json(
       { error: friendly },

@@ -3,6 +3,28 @@ import { NextResponse } from "next/server";
 
 export const maxDuration = 60;
 
+const RATE_LIMIT_PER_MINUTE = 20;
+const rateLimitMap = new Map<string, number[]>();
+
+function getClientIp(request: Request): string {
+  const xff = request.headers.get("x-forwarded-for");
+  const xri = request.headers.get("x-real-ip");
+  if (xff) return xff.split(",")[0].trim();
+  if (xri) return xri.trim();
+  return "unknown";
+}
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  let timestamps = rateLimitMap.get(ip) ?? [];
+  timestamps = timestamps.filter((t) => now - t < windowMs);
+  if (timestamps.length >= RATE_LIMIT_PER_MINUTE) return false;
+  timestamps.push(now);
+  rateLimitMap.set(ip, timestamps);
+  return true;
+}
+
 const PROMPT = `You are an expert in fruit packaging. Analyze this image and extract information from any visible text on the packaging (labels, stickers, printed text). The packaging may be from ANY country and in ANY language. Do NOT assume the fruit is Japanese or that the text is Japanese.
 
 Guidelines for extraction:
@@ -38,6 +60,14 @@ Respond with ONLY a valid JSON object in this exact shape:
 }`;
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json(
+      { error: "每分鐘最多可分析 20 次，請稍後再試。" },
+      { status: 429 }
+    );
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(

@@ -16,6 +16,24 @@ type AnalysisResult = {
   detected_text_lines: string[];
 };
 
+function normalizeAnalysisResult(data: Record<string, unknown>): AnalysisResult {
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  return {
+    fruit_category_display: str(data.fruit_category_display),
+    fruit_category_original: str(data.fruit_category_original),
+    possible_variety_display: str(data.possible_variety_display),
+    possible_variety_original: str(data.possible_variety_original),
+    origin_display: str(data.origin_display),
+    brand_or_farm_display: str(data.brand_or_farm_display),
+    grade_display: str(data.grade_display),
+    season_months: str(data.season_months),
+    summary_zh_tw: str(data.summary_zh_tw),
+    notes: str(data.notes),
+    detected_text_lines: arr(data.detected_text_lines),
+  };
+}
+
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -55,7 +73,7 @@ export default function Home() {
               setAnalysisError(data.error ? String(data.error) : "分析失敗");
               setHasAnalyzed(true);
             } else {
-              setAnalysisResult(data as unknown as AnalysisResult);
+              setAnalysisResult(normalizeAnalysisResult(data));
               setHasAnalyzed(true);
             }
           } catch (err) {

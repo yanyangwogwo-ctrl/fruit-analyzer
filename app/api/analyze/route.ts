@@ -76,27 +76,37 @@ export async function POST(request: Request) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const result = await model.generateContent([
       { inlineData: { mimeType, data: base64 } },
       { text: PROMPT },
     ]);
 
-    const text = result.response.text()?.trim();
-    if (!text) {
+    const raw = result.response.text()?.trim();
+    if (!raw) {
       return NextResponse.json(
         { error: "No response from the model." },
         { status: 502 }
       );
     }
 
-    const json = JSON.parse(text) as Record<string, unknown>;
+    const cleaned = raw
+      .replace(/^```json\s*/i, "")
+      .replace(/\s*```\s*$/i, "")
+      .trim();
+    let json: Record<string, unknown>;
+    try {
+      json = JSON.parse(cleaned) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json(
+        { error: "AI 回傳格式無法解析，請再試一次。" },
+        { status: 502 }
+      );
+    }
+    if (!Array.isArray(json.detected_text_lines)) {
+      json.detected_text_lines = [];
+    }
     return NextResponse.json(json);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

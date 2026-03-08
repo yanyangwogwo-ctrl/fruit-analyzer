@@ -11,6 +11,8 @@ type AnalysisResult = {
   brand_or_farm: string;
   grade: string;
   summary_zh_tw: string;
+  season_months: string;
+  notes: string;
 };
 
 export default function Home() {
@@ -55,10 +57,6 @@ export default function Home() {
           <h2 className="text-lg font-semibold text-gray-900">
             上傳水果（須連包裝）照片
           </h2>
-
-          <p className="mt-2 text-sm text-gray-600">
-            支援 jpg / jpeg / png。iPhone 的 HEIC 照片之後會在瀏覽器中先轉檔再送去給 AI 分析。
-          </p>
 
           <div className="mt-4">
             <button
@@ -169,8 +167,8 @@ export default function Home() {
                     <dd className="text-sm">
                       {analysisResult.fruit_category || "—"}
                       {analysisResult.fruit_category_ja
-                        ? `（${analysisResult.fruit_category_ja}）`
-                        : ""}
+                        ? <span className="text-gray-500">（{analysisResult.fruit_category_ja}）</span>
+                        : null}
                     </dd>
                   </div>
                   <div className="flex gap-2">
@@ -180,21 +178,25 @@ export default function Home() {
                     <dd className="text-sm">
                       {analysisResult.possible_variety || "—"}
                       {analysisResult.possible_variety_ja
-                        ? `（${analysisResult.possible_variety_ja}）`
-                        : ""}
+                        ? <span className="text-gray-500">（{analysisResult.possible_variety_ja}）</span>
+                        : null}
                     </dd>
                   </div>
                   <div className="flex gap-2">
                     <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
                       產地
                     </dt>
-                    <dd className="text-sm">{analysisResult.origin || "—"}</dd>
+                    <dd className="text-sm">
+                      {analysisResult.origin || "—"}
+                    </dd>
                   </div>
                   <div className="flex gap-2">
                     <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
                       品牌／農園
                     </dt>
-                    <dd className="text-sm">{analysisResult.brand_or_farm || "—"}</dd>
+                    <dd className="text-sm">
+                      {analysisResult.brand_or_farm || "—"}
+                    </dd>
                   </div>
                   <div className="flex gap-2">
                     <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
@@ -202,6 +204,20 @@ export default function Home() {
                     </dt>
                     <dd className="text-sm">{analysisResult.grade || "—"}</dd>
                   </div>
+                  <div className="flex gap-2">
+                    <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
+                      產季
+                    </dt>
+                    <dd className="text-sm">{analysisResult.season_months || "—"}</dd>
+                  </div>
+                  {analysisResult.notes ? (
+                    <div className="flex gap-2">
+                      <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
+                        備註
+                      </dt>
+                      <dd className="text-sm text-gray-600">{analysisResult.notes}</dd>
+                    </div>
+                  ) : null}
                 </dl>
               </>
             ) : (

@@ -3,11 +3,17 @@ import { NextResponse } from "next/server";
 
 const PROMPT = `You are an expert in Japanese fruit packaging. Analyze this image and extract information from any visible Japanese text on the packaging (labels, stickers, printed text).
 
-Rules:
-- Read and use only the Japanese text visible on the packaging. Do not guess or hallucinate variety names if they are not clearly shown.
-- Identify fruit category and possible variety from the text.
-- Write a short summary in Traditional Chinese (繁體中文) in summary_zh_tw.
-- Leave any field as an empty string "" if the information is not found on the packaging.
+Display language rules:
+- For fruit_category, possible_variety, origin, and brand_or_farm: use Traditional Chinese (繁體中文) as the main value when a common name exists; otherwise use English. Put the Japanese reading in the _ja fields for supporting display.
+- summary_zh_tw: short summary in Traditional Chinese only.
+- Do not guess or hallucinate variety names if not clearly shown on the packaging.
+
+Season rules (knowledge-based, do NOT use any season written on the package):
+- season_months: The typical production or market season of this fruit or variety in Japan. This is inferred from general knowledge (fruit type/variety), not from the packaging. Use month format in Japanese, e.g. "12月–5月", "6月–8月", "9月–10月". Leave "" if the typical season cannot be reasonably inferred.
+- When you fill season_months, add to notes: "產季為一般典型月份，非包裝明示" (or similar) so the user knows it is not from the package.
+- notes: Use for the season disclaimer above and other uncertainties. Leave "" if nothing to add.
+
+Leave any other field as an empty string "" if the information is not found.
 
 Respond with ONLY a valid JSON object in this exact shape (no markdown, no \`\`\`json):
 {
@@ -18,7 +24,9 @@ Respond with ONLY a valid JSON object in this exact shape (no markdown, no \`\`\
   "origin": "",
   "brand_or_farm": "",
   "grade": "",
-  "summary_zh_tw": ""
+  "summary_zh_tw": "",
+  "season_months": "",
+  "notes": ""
 }`;
 
 export async function POST(request: Request) {

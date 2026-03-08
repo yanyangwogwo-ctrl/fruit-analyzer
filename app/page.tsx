@@ -27,24 +27,24 @@ export default function Home() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/jpg,image/png"
+        accept="image/jpeg,image/jpg,image/png,image/*"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (!file) return;
-          const url = URL.createObjectURL(file);
-          setPreviewUrl(url);
+          setPreviewUrl(URL.createObjectURL(file));
           setSelectedFile(file);
           setHasAnalyzed(false);
           setIsAnalyzing(false);
           setAnalysisResult(null);
           setAnalysisError(null);
+          e.target.value = "";
         }}
       />
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-6 text-center">
       <h1 className="text-4xl font-bold tracking-tight">
-          日本水果包裝文字解讀師v0.1
+          水果包裝文字解讀師v0.1
         </h1>
 
         <p className="mt-4 text-lg text-gray-600">
@@ -60,17 +60,13 @@ export default function Home() {
             支援 jpg / jpeg / png。iPhone 的 HEIC 照片之後會在瀏覽器中先轉檔再送去給 AI 分析。
           </p>
 
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-          <button
+          <div className="mt-4">
+            <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex-1 rounded-xl bg-black px-5 py-3 text-center text-sm font-medium text-white transition hover:opacity-90"
+              className="w-full rounded-xl bg-black px-5 py-3 text-center text-sm font-medium text-white transition hover:opacity-90"
             >
-              選擇圖片檔案
-            </button>
-
-            <button className="flex-1 rounded-xl border border-gray-300 px-5 py-3 text-center text-sm font-medium text-gray-800 transition hover:bg-gray-50">
-              使用手機相機（之後再實作）
+              選擇圖片或拍照
             </button>
           </div>
 

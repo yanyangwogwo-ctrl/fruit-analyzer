@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 export const maxDuration = 60;
 
-const RATE_LIMIT_PER_MINUTE = 20;
+const RATE_LIMIT_PER_MINUTE = 15;
 const rateLimitMap = new Map<string, number[]>();
 
 function getClientIp(request: Request): string {
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
   const ip = getClientIp(request);
   if (!checkRateLimit(ip)) {
     return NextResponse.json(
-      { error: "每分鐘最多可分析 20 次，請稍後再試。" },
+      { error: "已達每分鐘請求上限，請稍後再試。" },
       { status: 429 }
     );
   }

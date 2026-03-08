@@ -1,29 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
+// 設定 Vercel Serverless Function 最大執行時間為 60 秒 (Hobby 方案上限)
 export const maxDuration = 60;
-
-const RATE_LIMIT_PER_MINUTE = 15;
-const rateLimitMap = new Map<string, number[]>();
-
-function getClientIp(request: Request): string {
-  const xff = request.headers.get("x-forwarded-for");
-  const xri = request.headers.get("x-real-ip");
-  if (xff) return xff.split(",")[0].trim();
-  if (xri) return xri.trim();
-  return "unknown";
-}
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const windowMs = 60 * 1000;
-  let timestamps = rateLimitMap.get(ip) ?? [];
-  timestamps = timestamps.filter((t) => now - t < windowMs);
-  if (timestamps.length >= RATE_LIMIT_PER_MINUTE) return false;
-  timestamps.push(now);
-  rateLimitMap.set(ip, timestamps);
-  return true;
-}
 
 const PROMPT = `You are an expert in fruit packaging. Analyze this image and extract information from any visible text on the packaging (labels, stickers, printed text). The packaging may be from ANY country and in ANY language. Do NOT assume the fruit is Japanese or that the text is Japanese.
 
@@ -36,13 +15,11 @@ Guidelines for extraction:
 
 season_months: (knowledge-based) The typical global production season for this fruit/variety (e.g., "12月–5月"). Leave "" if uncertain. If filled, add to notes: "產季為一般典型月份，非包裝明示".
 
-summary_zh_tw: Short summary in Traditional Chinese only, written in a professional and engaging tone suitable for a fruit review post.
+summary_zh_tw: Write a 2-sentence professional summary in Traditional Chinese suitable for a fruit connoisseur's review post. Sentence 1: Introduce the fruit by combining its specific origin, JA/brand, and variety. Sentence 2: Highlight any premium indicators found on the package (e.g., grade, sugar content, special farming methods). Do NOT invent tasting notes; rely strictly on packaging claims.
 
 notes: Use for the season disclaimer and other uncertainties. Leave "" if nothing to add.
 
-detected_text_lines: List all significant text lines or phrases you detected from the packaging (one string per array element), in the order or grouping that helps debugging. Use [] if none.
-
-Leave any other field as an empty string "" if the information is not found.
+Leave any field as an empty string "" if the information is not found.
 
 Respond with ONLY a valid JSON object in this exact shape:
 {
@@ -60,18 +37,10 @@ Respond with ONLY a valid JSON object in this exact shape:
 }`;
 
 export async function POST(request: Request) {
-  const ip = getClientIp(request);
-  if (!checkRateLimit(ip)) {
-    return NextResponse.json(
-      { error: "已達每分鐘請求上限，請稍後再試。" },
-      { status: 429 }
-    );
-  }
-
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { error: "GEMINI_API_KEY is not set." },
+      { error: "伺服器未設定 GEMINI_API_KEY。" },
       { status: 500 }
     );
   }
@@ -82,24 +51,27 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get("image");
+
     if (!file || !(file instanceof File)) {
       return NextResponse.json(
         { error: "請上傳圖片。" },
         { status: 400 }
       );
     }
+
     if (file.size > 4 * 1024 * 1024) {
       return NextResponse.json(
         { error: "圖片檔案過大，請上傳小於 4MB 的圖片。" },
         { status: 400 }
       );
     }
+
     const arrayBuffer = await file.arrayBuffer();
     imageBuffer = Buffer.from(arrayBuffer);
     mimeType = file.type || "image/jpeg";
-  } catch {
+  } catch (e) {
     return NextResponse.json(
-      { error: "Failed to read uploaded image." },
+      { error: "讀取上傳圖片失敗。" },
       { status: 400 }
     );
   }
@@ -108,47 +80,37 @@ export async function POST(request: Request) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    // 動態讀取環境變數，預設使用 flash
+    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    });
 
     const result = await model.generateContent([
       { inlineData: { mimeType, data: base64 } },
       { text: PROMPT },
     ]);
 
-    const raw = result.response.text()?.trim();
-    if (!raw) {
+    const text = result.response.text()?.trim();
+    if (!text) {
       return NextResponse.json(
-        { error: "No response from the model." },
+        { error: "AI 模型沒有回傳結果。" },
         { status: 502 }
       );
     }
 
-    const cleaned = raw
-      .replace(/^```json\s*/i, "")
-      .replace(/\s*```\s*$/i, "")
-      .trim();
-    let json: Record<string, unknown>;
-    try {
-      json = JSON.parse(cleaned) as Record<string, unknown>;
-    } catch {
-      return NextResponse.json(
-        { error: "AI 回傳格式無法解析，請再試一次。" },
-        { status: 502 }
-      );
-    }
-    if (!Array.isArray(json.detected_text_lines)) {
-      json.detected_text_lines = [];
-    }
+    const json = JSON.parse(text);
     return NextResponse.json(json);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const is429 = /429|quota|Quota/i.test(message);
-    const isLocation = /location is not supported|not supported for the API/i.test(message);
     const friendly = is429
       ? "已超過目前免費額度或每分鐘請求上限，請稍候約一分鐘再試。"
-      : isLocation
-        ? "您目前所在地區不支援使用此 AI 服務。請使用 VPN 連到支援地區後再試。"
-        : message;
+      : message;
     return NextResponse.json(
       { error: friendly },
       { status: is429 ? 429 : 502 }

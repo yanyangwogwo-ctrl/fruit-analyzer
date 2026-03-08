@@ -13,6 +13,7 @@ type AnalysisResult = {
   season_months: string;
   summary_zh_tw: string;
   notes: string;
+  detected_text_lines: string[];
 };
 
 export default function Home() {
@@ -192,6 +193,24 @@ export default function Home() {
                         備註
                       </dt>
                       <dd className="text-sm text-gray-600">{analysisResult.notes}</dd>
+                    </div>
+                  ) : null}
+                  {Array.isArray(analysisResult.detected_text_lines) &&
+                  analysisResult.detected_text_lines.length > 0 ? (
+                    <div className="flex gap-2">
+                      <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
+                        偵測到的包裝文字
+                      </dt>
+                      <dd className="flex flex-wrap gap-1.5 text-sm">
+                        {analysisResult.detected_text_lines.map((line, i) => (
+                          <span
+                            key={i}
+                            className="rounded bg-gray-100 px-2 py-0.5 text-gray-700"
+                          >
+                            {line}
+                          </span>
+                        ))}
+                      </dd>
                     </div>
                   ) : null}
                 </dl>

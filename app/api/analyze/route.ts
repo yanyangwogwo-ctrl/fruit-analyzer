@@ -4,35 +4,50 @@ import { NextResponse } from "next/server";
 // 設定 Vercel Serverless Function 最大執行時間為 60 秒 (Hobby 方案上限)
 export const maxDuration = 60;
 
-const PROMPT = `You are an expert in fruit packaging. Analyze this image and extract information from any visible text on the packaging (labels, stickers, printed text). The packaging may be from ANY country and in ANY language. Do NOT assume the fruit is Japanese or that the text is Japanese.
+const PROMPT = `You are an expert in fruit packaging. Analyze this image to identify the marketed product and extract packaging information. The packaging may be from ANY country and in ANY language. Do NOT assume the fruit is Japanese or that the text is Japanese.
 
-Guidelines for extraction:
-- Prefer Traditional Chinese (繁體中文) for display fields when a stable, common Chinese name exists.
-- For "origin_display": Prefer Traditional Chinese normalized location names (e.g., "日本宮城縣", "韓國慶尚北道"). If normalization is uncertain, preserve the original meaning.
-- For "possible_variety_display": Use a common Traditional Chinese name if widely used. If no stable common name exists, use the most recognizable original-language or English form. Do NOT invent a Chinese translation for a variety name.
-- For "_original" fields: Preserve the exact text as it appears on the package. Leave "" if not applicable.
-- Do not guess or hallucinate variety names if not clearly shown.
+Important: Product identification is NOT OCR-only. Use BOTH (1) visible packaging text and (2) visual packaging design cues to identify the marketed product. Do NOT infer product or variety from fruit appearance alone. Product identification must rely on packaging information—either textual or design-related.
 
-season_months: (knowledge-based) The typical global production season for this fruit/variety (e.g., "12月–5月"). Leave "" if uncertain. If filled, add to notes: "產季為一般典型月份，非包裝明示".
+Visual packaging cues include: logos, packaging layout, color scheme, label/sticker style, distinctive branding elements, recognizable package design.
 
-summary_zh_tw: Write a 2-sentence professional summary in Traditional Chinese suitable for a fruit connoisseur's review post. Sentence 1: Introduce the fruit by combining its specific origin, JA/brand, and variety. Sentence 2: Highlight any premium indicators found on the package (e.g., grade, sugar content, special farming methods). Do NOT invent tasting notes; rely strictly on packaging claims.
+Intended logic: image → packaging analysis (text + design) → identify marketed product → infer cultivar only if product identity is clear → structured JSON.
 
-notes: Use for the season disclaimer and other uncertainties. Leave "" if nothing to add.
+Guidelines:
+1. Analyze the full packaging image (text and design). Extract meaningful detected text into detected_text_lines (array of strings).
+2. Identify the marketed product using packaging text and/or packaging design cues. Fill identified_product_name only if a specific marketed product or product line can be identified with reasonable confidence; otherwise "".
+3. identified_product_confidence: "high" | "medium" | "low" | "" (empty if no product identified).
+4. Variety (possible_variety_*):
+   - If variety is explicitly written on the package: set possible_variety_basis = "explicit_package_text". possible_variety_original must contain ONLY variety text directly visible on the package.
+   - If variety is inferred from a clearly identified product: set possible_variety_basis = "identified_product_inference".
+   - Otherwise leave possible_variety_basis and variety fields empty.
+   - Never infer variety from fruit appearance alone. Never treat inferred variety as if it were directly written on the package.
+5. For display fields prefer Traditional Chinese when a stable common name exists. For origin_display use normalized names (e.g. "日本宮城縣", "韓國慶尚北道"). For possible_variety_display use common Chinese name if widely used; otherwise original language or English. Do NOT invent a Chinese translation for a variety name.
+6. confidence_level: overall confidence for the whole analysis ("high" | "medium" | "low" | "").
 
-Leave any field as an empty string "" if the information is not found.
+season_months: (knowledge-based) Typical global production season for this fruit/variety (e.g. "12月–5月"). Leave "" if uncertain. If filled, add to notes: "產季為一般典型月份，非包裝明示".
+
+summary_zh_tw: Write a 2-sentence professional summary in Traditional Chinese suitable for a fruit connoisseur's review post. Sentence 1: Introduce the fruit by origin, JA/brand, and variety. Sentence 2: Highlight premium indicators on the package (grade, sugar content, farming methods). Do NOT invent tasting notes; rely strictly on packaging claims.
+
+notes: Use for season disclaimer and other uncertainties. Leave "" if nothing to add.
+
+Leave any field as an empty string "" or empty array [] if not found or not applicable.
 
 Respond with ONLY a valid JSON object in this exact shape:
 {
   "fruit_category_display": "",
   "fruit_category_original": "",
+  "identified_product_name": "",
+  "identified_product_confidence": "",
   "possible_variety_display": "",
   "possible_variety_original": "",
+  "possible_variety_basis": "",
   "origin_display": "",
   "brand_or_farm_display": "",
   "grade_display": "",
   "season_months": "",
   "summary_zh_tw": "",
   "notes": "",
+  "confidence_level": "",
   "detected_text_lines": []
 }`;
 
@@ -104,7 +119,9 @@ export async function POST(request: Request) {
     }
 
     const json = JSON.parse(text);
-    return NextResponse.json(json);
+    return NextResponse.json(json, {
+      headers: { "X-Gemini-Model": modelName },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const is429 = /429|quota|Quota/i.test(message);

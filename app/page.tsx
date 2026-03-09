@@ -144,17 +144,17 @@ export default function Home() {
         }}
       />
     <main className="min-h-screen bg-white text-black">
-      <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-6 text-center">
-      <h1 className="text-4xl font-bold tracking-tight">
+      <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center px-4 pb-8 pt-24 text-center sm:px-6 sm:pt-28">
+      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
           水果品種鑑定師
         </h1>
 
-        <section className="mt-8 w-full rounded-2xl border border-gray-200 bg-white p-6 text-left shadow-sm">
+        <section className="mt-5 w-full rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900">
             上傳水果（須連包裝）照片，幫你從包裝文字鑑定品種
           </h2>
 
-          <div className="mt-4">
+          <div className="mt-3">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -164,11 +164,11 @@ export default function Home() {
             </button>
           </div>
 
-          <p className="mt-3 text-xs text-gray-500">
+          <p className="mt-2.5 text-xs text-gray-500">
             選擇或拍攝圖片後會自動開始分析包裝文字。
           </p>
           {previewUrl && (
-            <div className="mt-4">
+            <div className="mt-3">
               <p className="text-xs font-medium text-gray-700">
                 已選擇的圖片
                 {isCompressing ? " · 正在處理／壓縮中" : isAnalyzing ? " · 分析中⋯⋯" : ""}
@@ -177,13 +177,13 @@ export default function Home() {
                 <img
                   src={previewUrl}
                   alt="已選擇的水果包裝圖片預覽"
-                  className="max-h-80 w-full object-contain"
+                  className="max-h-52 w-full object-contain sm:max-h-72"
                 />
               </div>
             </div>
           )}
         </section>
-        <section className="mt-10 w-full rounded-2xl bg-gray-50 p-6 text-left shadow-sm">
+        <section className="mt-6 w-full rounded-2xl bg-gray-50 p-5 text-left shadow-sm sm:mt-8 sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900">
             分析結果
           </h2>

@@ -22,6 +22,7 @@ type AnalysisResult = {
 type FruitProfileRow = {
   label: string;
   value: string;
+  bulletItems?: string[];
 };
 
 function normalizeAnalysisResult(data: Record<string, unknown>): AnalysisResult {
@@ -43,11 +44,53 @@ function normalizeAnalysisResult(data: Record<string, unknown>): AnalysisResult 
   };
 }
 
+function hasCjkIdeograph(text: string): boolean {
+  return /[\u3400-\u9FFF]/.test(text);
+}
+
+function formatVarietyDisplay(display: string, original: string): string {
+  const normalizedDisplay = display.trim();
+  const normalizedOriginal = original.trim();
+  if (!normalizedDisplay) return "";
+  if (!normalizedOriginal) return normalizedDisplay;
+  return hasCjkIdeograph(normalizedDisplay)
+    ? `${normalizedDisplay}（${normalizedOriginal}）`
+    : normalizedDisplay;
+}
+
+function parseVarietyCharacteristics(text: string): string[] {
+  const normalized = text.trim();
+  if (!normalized) return [];
+
+  const strippedLines = normalized
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^[-*•●○▪▫・‧]\s*/, ""))
+    .filter((line) => line.length > 0);
+
+  const seed = strippedLines.length > 0 ? strippedLines : [normalized];
+  const phrases = seed
+    .flatMap((line) => line.split(/[；;、]/))
+    .map((item) => item.trim().replace(/^[-*•●○▪▫・‧]\s*/, "").replace(/[。]+$/g, ""))
+    .filter((item) => item.length > 0);
+
+  return Array.from(new Set(phrases));
+}
+
 function buildFruitProfileRows(result: AnalysisResult): FruitProfileRow[] {
+  const formattedVarietyDisplay = formatVarietyDisplay(
+    result.possible_variety_display,
+    result.possible_variety_original
+  );
+  const varietyCharacteristicsItems = parseVarietyCharacteristics(result.variety_characteristics);
+
   const rows: FruitProfileRow[] = [
     { label: "水果類別", value: result.fruit_category_display },
-    { label: "推定品種", value: result.possible_variety_display },
-    { label: "品種特點", value: result.variety_characteristics },
+    { label: "推定品種", value: formattedVarietyDisplay },
+    {
+      label: "品種特點",
+      value: result.variety_characteristics,
+      bulletItems: varietyCharacteristicsItems,
+    },
     { label: "產地", value: result.origin_display },
     { label: "品牌 / 農園", value: result.brand_or_farm_display },
     { label: "產季", value: result.season_months },
@@ -212,8 +255,16 @@ export default function Home() {
                         <dt className="text-xs font-medium tracking-wide text-gray-400">
                           {row.label}
                         </dt>
-                        <dd className="text-sm font-semibold leading-6 text-gray-900 sm:text-base">
-                          {row.value}
+                        <dd className="text-sm leading-6 text-gray-900 sm:text-base">
+                          {row.label === "品種特點" && row.bulletItems && row.bulletItems.length > 0 ? (
+                            <ul className="list-disc space-y-1 pl-4 font-medium text-gray-800 marker:text-gray-400">
+                              {row.bulletItems.map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="font-semibold">{row.value}</span>
+                          )}
                         </dd>
                       </div>
                     ))}

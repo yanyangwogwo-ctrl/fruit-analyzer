@@ -8,6 +8,7 @@ type AnalysisResult = {
   fruit_category_original: string;
   possible_variety_display: string;
   possible_variety_original: string;
+  variety_characteristics: string;
   origin_display: string;
   brand_or_farm_display: string;
   grade_display: string;
@@ -15,6 +16,11 @@ type AnalysisResult = {
   summary_zh_tw: string;
   notes: string;
   detected_text_lines: string[];
+};
+
+type FruitProfileRow = {
+  label: string;
+  value: string;
 };
 
 function normalizeAnalysisResult(data: Record<string, unknown>): AnalysisResult {
@@ -25,6 +31,7 @@ function normalizeAnalysisResult(data: Record<string, unknown>): AnalysisResult 
     fruit_category_original: str(data.fruit_category_original),
     possible_variety_display: str(data.possible_variety_display),
     possible_variety_original: str(data.possible_variety_original),
+    variety_characteristics: str(data.variety_characteristics),
     origin_display: str(data.origin_display),
     brand_or_farm_display: str(data.brand_or_farm_display),
     grade_display: str(data.grade_display),
@@ -33,6 +40,20 @@ function normalizeAnalysisResult(data: Record<string, unknown>): AnalysisResult 
     notes: str(data.notes),
     detected_text_lines: arr(data.detected_text_lines),
   };
+}
+
+function buildFruitProfileRows(result: AnalysisResult): FruitProfileRow[] {
+  const rows: FruitProfileRow[] = [
+    { label: "水果類別", value: result.fruit_category_display },
+    { label: "推定品種", value: result.possible_variety_display },
+    { label: "品種特點", value: result.variety_characteristics },
+    { label: "產地", value: result.origin_display },
+    { label: "品牌 / 農園", value: result.brand_or_farm_display },
+    { label: "產季", value: result.season_months },
+    { label: "備註", value: result.notes },
+  ];
+
+  return rows.filter((row) => row.value.trim().length > 0);
 }
 
 export default function Home() {
@@ -44,6 +65,7 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const fruitProfileRows = analysisResult ? buildFruitProfileRows(analysisResult) : [];
 
   return (
     <>
@@ -157,7 +179,7 @@ export default function Home() {
             分析結果
           </h2>
 
-          <div className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-6 text-sm text-gray-700">
+          <div className="mt-4">
             {isCompressing ? (
               <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50 px-4 py-6 text-sm text-amber-800">
                 正在處理／壓縮中⋯⋯
@@ -171,87 +193,34 @@ export default function Home() {
                 {analysisError}
               </div>
             ) : hasAnalyzed && analysisResult ? (
-              <>
+              <div className="rounded-2xl border border-gray-200 bg-white px-5 py-6 shadow-sm sm:px-6">
                 {analysisResult.summary_zh_tw && (
-                  <p className="mb-3 text-sm text-gray-700">
+                  <p className="text-[15px] leading-7 text-gray-700 sm:text-base">
                     {analysisResult.summary_zh_tw}
                   </p>
                 )}
-                <dl className="mt-3 space-y-2">
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
-                      水果類別
-                    </dt>
-                    <dd className="text-sm">
-                      {analysisResult.fruit_category_display || "—"}
-                      {analysisResult.fruit_category_original
-                        ? <span className="text-gray-500">（{analysisResult.fruit_category_original}）</span>
-                        : null}
-                    </dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
-                      可能品種
-                    </dt>
-                    <dd className="text-sm">
-                      {analysisResult.possible_variety_display || "—"}
-                      {analysisResult.possible_variety_original
-                        ? <span className="text-gray-500">（{analysisResult.possible_variety_original}）</span>
-                        : null}
-                    </dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
-                      產地
-                    </dt>
-                    <dd className="text-sm">{analysisResult.origin_display || "—"}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
-                      品牌／農園
-                    </dt>
-                    <dd className="text-sm">{analysisResult.brand_or_farm_display || "—"}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
-                      等級
-                    </dt>
-                    <dd className="text-sm">{analysisResult.grade_display || "—"}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
-                      產季
-                    </dt>
-                    <dd className="text-sm">{analysisResult.season_months || "—"}</dd>
-                  </div>
-                  {analysisResult.notes ? (
-                    <div className="flex gap-2">
-                      <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
-                        備註
-                      </dt>
-                      <dd className="text-sm text-gray-600">{analysisResult.notes}</dd>
-                    </div>
-                  ) : null}
-                  {Array.isArray(analysisResult.detected_text_lines) &&
-                  analysisResult.detected_text_lines.length > 0 ? (
-                    <div className="flex gap-2">
-                      <dt className="w-28 shrink-0 text-xs font-medium text-gray-500">
-                        偵測到的包裝文字
-                      </dt>
-                      <dd className="flex flex-wrap gap-1.5 text-sm">
-                        {analysisResult.detected_text_lines.map((line, i) => (
-                          <span
-                            key={i}
-                            className="rounded bg-gray-100 px-2 py-0.5 text-gray-700"
-                          >
-                            {line}
-                          </span>
-                        ))}
-                      </dd>
-                    </div>
-                  ) : null}
-                </dl>
-              </>
+                {fruitProfileRows.length > 0 ? (
+                  <dl className={`${analysisResult.summary_zh_tw ? "mt-5" : ""} divide-y divide-gray-100`}>
+                    {fruitProfileRows.map((row) => (
+                      <div
+                        key={row.label}
+                        className="grid grid-cols-[6.25rem_1fr] gap-x-3 py-3 sm:grid-cols-[7.5rem_1fr] sm:py-4"
+                      >
+                        <dt className="text-xs font-medium tracking-wide text-gray-400">
+                          {row.label}
+                        </dt>
+                        <dd className="text-sm font-semibold leading-6 text-gray-900 sm:text-base">
+                          {row.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  <p className={`${analysisResult.summary_zh_tw ? "mt-4" : ""} text-sm text-gray-500`}>
+                    目前未擷取到可展示的水果資訊。
+                  </p>
+                )}
+              </div>
             ) : (
               <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-6 text-sm text-gray-400">
                 尚未分析。請在上方選擇或拍攝圖片，將自動開始分析。

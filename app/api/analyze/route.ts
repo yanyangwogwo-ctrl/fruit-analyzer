@@ -21,9 +21,11 @@ Guidelines:
    - If variety is inferred from a clearly identified product: set possible_variety_basis = "identified_product_inference".
    - Otherwise leave possible_variety_basis and variety fields empty.
    - Never infer variety from fruit appearance alone. Never treat inferred variety as if it were directly written on the package.
-   - If possible_variety_display is filled and the cultivar is reasonably known, provide variety_characteristics with a short factual horticultural description of typical cultivar traits (e.g., sweetness level, acidity balance, aroma, flesh color, texture, distinguishing traits).
-   - Keep variety_characteristics neutral and factual; avoid marketing language and avoid subjective tasting storytelling.
-   - Do not invent characteristics for unknown/uncertain cultivars. If uncertain, set variety_characteristics to "".
+   - If possible_variety_display is filled and the cultivar is reasonably known, provide variety_characteristics in Traditional Chinese only as concise bullet-style trait phrases.
+   - Prefer short horticultural/cultivar traits (sweetness, acidity balance, aroma, flesh color, texture, distinguishing traits) rather than full sentences.
+   - Format variety_characteristics as newline-separated bullet points within one string (example: "- 高甜度\\n- 香氣濃郁\\n- 果肉細緻").
+   - Keep variety_characteristics neutral and factual; avoid marketing language, avoid subjective tasting storytelling, and do not invent traits.
+   - If the cultivar is unknown or uncertain, set variety_characteristics to "".
 5. For display fields prefer Traditional Chinese when a stable common name exists. For origin_display use normalized names (e.g. "日本宮城縣", "韓國慶尚北道"). For possible_variety_display use common Chinese name if widely used; otherwise original language or English. Do NOT invent a Chinese translation for a variety name.
 6. confidence_level: overall confidence for the whole analysis ("high" | "medium" | "low" | "").
 

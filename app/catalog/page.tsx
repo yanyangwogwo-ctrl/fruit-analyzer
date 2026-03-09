@@ -52,7 +52,7 @@ export default function CatalogPage() {
 
   return (
     <>
-      <main className="min-h-screen bg-gray-50 px-4 pb-12 pt-24 text-black sm:px-6">
+      <main className="min-h-screen bg-gray-50 px-4 pb-12 pt-32 text-black sm:px-6 sm:pt-36">
         <div className="mx-auto w-full max-w-5xl">
           <header className="mb-6 text-left">
             <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
@@ -105,7 +105,7 @@ export default function CatalogPage() {
                   <button
                     type="button"
                     onClick={() => void handleDeleteEntry(entry.id)}
-                    className="absolute top-3 right-3 rounded-full border border-gray-200 bg-white/95 px-2.5 py-1 text-xs text-gray-500 shadow-sm transition hover:border-red-200 hover:text-red-600"
+                    className="absolute top-3 right-3 flex min-h-10 items-center rounded-full border border-gray-200 bg-white/95 px-3 text-xs text-gray-500 shadow-sm transition hover:border-red-200 hover:text-red-600"
                   >
                     刪除
                   </button>

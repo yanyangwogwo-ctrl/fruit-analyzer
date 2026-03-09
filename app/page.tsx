@@ -46,6 +46,7 @@ const version = packageJson.version;
 
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const resultSectionRef = useRef<HTMLElement | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
@@ -70,6 +71,58 @@ export default function Home() {
     const timer = window.setTimeout(() => setToastMessage(null), 2200);
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
+
+  useEffect(() => {
+    if (isCompressing || isAnalyzing || !hasAnalyzed) return;
+    if (!analysisResult && !analysisError) return;
+    resultSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [analysisError, analysisResult, hasAnalyzed, isAnalyzing, isCompressing]);
+
+  const handleSaveCatalog = async () => {
+    if (!selectedFile || !rawAnalysisResult || !analysisResult) return;
+    const analysisSignature = serializeAnalysisResult(rawAnalysisResult);
+    if (sessionSavedSignatures.has(analysisSignature)) return;
+
+    setIsSavingCatalog(true);
+    try {
+      const existingEntries = await catalogDB.entries.toArray();
+      const isDuplicate = existingEntries.some(
+        (entry) => serializeAnalysisResult(entry.analysis_result) === analysisSignature
+      );
+
+      if (isDuplicate) {
+        setSessionSavedSignatures((prev) => {
+          const next = new Set(prev);
+          next.add(analysisSignature);
+          return next;
+        });
+        setToastMessage("此分析已在圖鑑中");
+        return;
+      }
+
+      const thumbnailData = await createThumbnailDataUrl(selectedFile);
+      await catalogDB.entries.add({
+        image_data: thumbnailData,
+        analysis_result: rawAnalysisResult,
+        fruit_category_display: analysisResult.fruit_category_display,
+        possible_variety_display: analysisResult.possible_variety_display,
+        origin_display: analysisResult.origin_display,
+        created_at: Date.now(),
+        app_version: version,
+      });
+
+      setSessionSavedSignatures((prev) => {
+        const next = new Set(prev);
+        next.add(analysisSignature);
+        return next;
+      });
+      setToastMessage("已加入圖鑑");
+    } catch {
+      setToastMessage("加入圖鑑失敗，請稍後再試");
+    } finally {
+      setIsSavingCatalog(false);
+    }
+  };
 
   return (
     <>
@@ -144,31 +197,23 @@ export default function Home() {
         }}
       />
     <main className="min-h-screen bg-white text-black">
-      <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center px-4 pb-8 pt-24 text-center sm:px-6 sm:pt-28">
-      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          水果品種鑑定師
-        </h1>
-
-        <section className="mt-5 w-full rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm sm:p-6">
+      <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center px-4 pb-8 pt-32 text-center sm:px-6 sm:pt-36">
+        <section className="w-full rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm sm:p-5">
           <h2 className="text-lg font-semibold text-gray-900">
             上傳水果（須連包裝）照片，幫你從包裝文字鑑定品種
           </h2>
 
-          <div className="mt-3">
+          <div className="mt-2.5">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full rounded-xl bg-black px-5 py-3 text-center text-sm font-medium text-white transition hover:opacity-90"
+              className="w-full rounded-xl bg-black px-5 py-2.5 text-center text-sm font-medium text-white transition hover:opacity-90"
             >
               選擇圖片或拍照
             </button>
           </div>
-
-          <p className="mt-2.5 text-xs text-gray-500">
-            選擇或拍攝圖片後會自動開始分析包裝文字。
-          </p>
           {previewUrl && (
-            <div className="mt-3">
+            <div className="mt-2.5">
               <p className="text-xs font-medium text-gray-700">
                 已選擇的圖片
                 {isCompressing ? " · 正在處理／壓縮中" : isAnalyzing ? " · 分析中⋯⋯" : ""}
@@ -183,12 +228,29 @@ export default function Home() {
             </div>
           )}
         </section>
-        <section className="mt-6 w-full rounded-2xl bg-gray-50 p-5 text-left shadow-sm sm:mt-8 sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-900">
-            分析結果
-          </h2>
+        <section
+          ref={resultSectionRef}
+          className="mt-4 w-full scroll-mt-36 rounded-2xl bg-gray-50 p-4 text-left shadow-sm sm:mt-5 sm:p-5"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-gray-900">分析結果</h2>
+            {hasAnalyzed && analysisResult ? (
+              <button
+                type="button"
+                disabled={isSavingCatalog || !selectedFile || !rawAnalysisResult || isCurrentSavedInSession}
+                onClick={() => void handleSaveCatalog()}
+                className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium shadow-md transition ${
+                  isCurrentSavedInSession
+                    ? "cursor-not-allowed border border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "bg-black text-white hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300"
+                }`}
+              >
+                {isSavingCatalog ? "加入中…" : isCurrentSavedInSession ? "已加入圖鑑" : "＋ 加入圖鑑"}
+              </button>
+            ) : null}
+          </div>
 
-          <div className="mt-4">
+          <div className="mt-3">
             {isCompressing ? (
               <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50 px-4 py-6 text-sm text-amber-800">
                 正在處理／壓縮中⋯⋯
@@ -237,65 +299,6 @@ export default function Home() {
                     目前未擷取到可展示的水果資訊。
                   </p>
                 )}
-                <div className="mt-5 flex justify-end">
-                  <button
-                    type="button"
-                    disabled={isSavingCatalog || !selectedFile || !rawAnalysisResult || isCurrentSavedInSession}
-                    onClick={async () => {
-                      if (!selectedFile || !rawAnalysisResult) return;
-                      const analysisSignature = serializeAnalysisResult(rawAnalysisResult);
-                      if (sessionSavedSignatures.has(analysisSignature)) return;
-
-                      setIsSavingCatalog(true);
-                      try {
-                        const existingEntries = await catalogDB.entries.toArray();
-                        const isDuplicate = existingEntries.some(
-                          (entry) =>
-                            serializeAnalysisResult(entry.analysis_result) === analysisSignature
-                        );
-
-                        if (isDuplicate) {
-                          setSessionSavedSignatures((prev) => {
-                            const next = new Set(prev);
-                            next.add(analysisSignature);
-                            return next;
-                          });
-                          setToastMessage("此分析已在圖鑑中");
-                          return;
-                        }
-
-                        const thumbnailData = await createThumbnailDataUrl(selectedFile);
-                        await catalogDB.entries.add({
-                          image_data: thumbnailData,
-                          analysis_result: rawAnalysisResult,
-                          fruit_category_display: analysisResult.fruit_category_display,
-                          possible_variety_display: analysisResult.possible_variety_display,
-                          origin_display: analysisResult.origin_display,
-                          created_at: Date.now(),
-                          app_version: version,
-                        });
-
-                        setSessionSavedSignatures((prev) => {
-                          const next = new Set(prev);
-                          next.add(analysisSignature);
-                          return next;
-                        });
-                        setToastMessage("已加入圖鑑");
-                      } catch {
-                        setToastMessage("加入圖鑑失敗，請稍後再試");
-                      } finally {
-                        setIsSavingCatalog(false);
-                      }
-                    }}
-                    className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
-                      isCurrentSavedInSession
-                        ? "cursor-not-allowed border border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "bg-black text-white hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300"
-                    }`}
-                  >
-                    {isSavingCatalog ? "加入中…" : isCurrentSavedInSession ? "已加入圖鑑" : "加入圖鑑"}
-                  </button>
-                </div>
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-6 text-sm text-gray-400">

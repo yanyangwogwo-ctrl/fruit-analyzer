@@ -6,13 +6,17 @@ export type CatalogStatus = "want" | "tried";
 export type FruitCatalogEntry = {
   id?: number;
   image_data: string;
+  image_hash?: string;
   created_at: number;
   updated_at: number;
   app_version: string;
   analysis_result: Record<string, unknown>;
   fruit_category_display: string;
+  fruit_category_original: string;
+  identified_product_name: string;
   possible_variety_display: string;
   possible_variety_original: string;
+  possible_variety_basis: string;
   variety_characteristics: string;
   origin_display: string;
   brand_or_farm_display: string;
@@ -120,6 +124,7 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
       ? (raw.analysis_result as Record<string, unknown>)
       : {};
   const normalizedAnalysis = normalizeAnalysisResult(analysisResult);
+  const analysisStr = (key: string) => str(analysisResult[key]);
   const createdAt = num(raw.created_at) ?? Date.now();
   const normalizedTags = normalizeTags(raw.tags);
   const status: CatalogStatus = raw.status === "tried" ? "tried" : "want";
@@ -132,16 +137,21 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
   return {
     id: num(raw.id) ?? undefined,
     image_data: str(raw.image_data),
+    image_hash: str(raw.image_hash) || undefined,
     created_at: createdAt,
     updated_at: num(raw.updated_at) ?? createdAt,
     app_version: str(raw.app_version),
     analysis_result: analysisResult,
     fruit_category_display:
       str(raw.fruit_category_display) || normalizedAnalysis.fruit_category_display,
+    fruit_category_original: str(raw.fruit_category_original) || analysisStr("fruit_category_original"),
+    identified_product_name:
+      str(raw.identified_product_name) || analysisStr("identified_product_name"),
     possible_variety_display:
       str(raw.possible_variety_display) || normalizedAnalysis.possible_variety_display,
     possible_variety_original:
       str(raw.possible_variety_original) || normalizedAnalysis.possible_variety_original,
+    possible_variety_basis: str(raw.possible_variety_basis) || analysisStr("possible_variety_basis"),
     variety_characteristics:
       str(raw.variety_characteristics) || normalizedAnalysis.variety_characteristics,
     origin_display: str(raw.origin_display) || normalizedAnalysis.origin_display,
@@ -153,15 +163,32 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
     status,
     rating,
     tasting_note: str(raw.tasting_note),
-    tags:
-      normalizedTags.length > 0
-        ? normalizedTags
-        : generateDefaultTags({
-            fruit_category_display:
-              str(raw.fruit_category_display) || normalizedAnalysis.fruit_category_display,
-            origin_display: str(raw.origin_display) || normalizedAnalysis.origin_display,
-          }),
+    tags: normalizedTags,
     is_edited: bool(raw.is_edited),
+  };
+}
+
+export type CatalogSaveDraft = {
+  possible_variety_display: string;
+  origin_display: string;
+  status: CatalogStatus;
+  tags: string[];
+  rating: number | null;
+  tasting_note: string;
+};
+
+export function createCatalogSaveDraftFromAnalysis(analysisResult: Record<string, unknown>): CatalogSaveDraft {
+  const normalized = normalizeAnalysisResult(analysisResult);
+  return {
+    possible_variety_display: normalized.possible_variety_display,
+    origin_display: normalized.origin_display,
+    status: "want",
+    tags: generateDefaultTags({
+      fruit_category_display: normalized.fruit_category_display,
+      origin_display: normalized.origin_display,
+    }),
+    rating: null,
+    tasting_note: "",
   };
 }
 
@@ -170,8 +197,23 @@ export function createCatalogEntryFromAnalysis(input: {
   analysis_result: Record<string, unknown>;
   app_version: string;
   created_at?: number;
+  overrides?: Partial<CatalogSaveDraft>;
+  is_edited?: boolean;
 }): Omit<FruitCatalogEntry, "id"> {
+  const str = (value: unknown) => (typeof value === "string" ? value : "");
   const normalized = normalizeAnalysisResult(input.analysis_result);
+  const draftDefaults = createCatalogSaveDraftFromAnalysis(input.analysis_result);
+  const status = input.overrides?.status === "tried" ? "tried" : draftDefaults.status;
+  const normalizedOverrideTags = normalizeTags(input.overrides?.tags);
+  const tags = normalizedOverrideTags.length > 0 ? normalizedOverrideTags : draftDefaults.tags;
+  const ratingRaw = input.overrides?.rating;
+  const rating =
+    typeof ratingRaw === "number" && Number.isInteger(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5
+      ? ratingRaw
+      : null;
+  const possibleVarietyDisplay =
+    input.overrides?.possible_variety_display ?? draftDefaults.possible_variety_display;
+  const originDisplay = input.overrides?.origin_display ?? draftDefaults.origin_display;
   const timestamp = input.created_at ?? Date.now();
 
   return {
@@ -181,22 +223,22 @@ export function createCatalogEntryFromAnalysis(input: {
     app_version: input.app_version,
     analysis_result: input.analysis_result,
     fruit_category_display: normalized.fruit_category_display,
-    possible_variety_display: normalized.possible_variety_display,
+    fruit_category_original: str(input.analysis_result.fruit_category_original),
+    identified_product_name: str(input.analysis_result.identified_product_name),
+    possible_variety_display: possibleVarietyDisplay,
     possible_variety_original: normalized.possible_variety_original,
+    possible_variety_basis: str(input.analysis_result.possible_variety_basis),
     variety_characteristics: normalized.variety_characteristics,
-    origin_display: normalized.origin_display,
+    origin_display: originDisplay,
     brand_or_farm_display: normalized.brand_or_farm_display,
     season_months: normalized.season_months,
     summary_zh_tw: normalized.summary_zh_tw,
     notes: normalized.notes,
-    status: "want",
-    rating: null,
-    tasting_note: "",
-    tags: generateDefaultTags({
-      fruit_category_display: normalized.fruit_category_display,
-      origin_display: normalized.origin_display,
-    }),
-    is_edited: false,
+    status,
+    rating,
+    tasting_note: input.overrides?.tasting_note ?? draftDefaults.tasting_note,
+    tags,
+    is_edited: input.is_edited ?? false,
   };
 }
 

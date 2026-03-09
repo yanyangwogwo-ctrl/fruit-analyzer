@@ -4,7 +4,13 @@ import imageCompression from "browser-image-compression";
 import { useEffect, useMemo, useRef, useState } from "react";
 import packageJson from "../package.json";
 import { buildFruitProfileRows, normalizeAnalysisResult } from "@/lib/fruitProfile";
-import { catalogDB, createCatalogEntryFromAnalysis, serializeAnalysisResult } from "@/lib/catalogDB";
+import {
+  catalogDB,
+  createCatalogEntryFromAnalysis,
+  createCatalogSaveDraftFromAnalysis,
+  serializeAnalysisResult,
+  type CatalogSaveDraft,
+} from "@/lib/catalogDB";
 import type { AnalysisResult } from "@/lib/fruitProfile";
 
 async function createThumbnailDataUrl(file: File): Promise<string> {
@@ -44,6 +50,25 @@ async function createThumbnailDataUrl(file: File): Promise<string> {
 
 const version = packageJson.version;
 
+function normalizeTag(tag: string): string {
+  return tag.trim().replace(/^#+/, "");
+}
+
+function hasSaveDraftChanged(
+  baseline: CatalogSaveDraft | null,
+  current: CatalogSaveDraft | null
+): boolean {
+  if (!baseline || !current) return false;
+  return (
+    baseline.possible_variety_display !== current.possible_variety_display ||
+    baseline.origin_display !== current.origin_display ||
+    baseline.status !== current.status ||
+    baseline.rating !== current.rating ||
+    baseline.tasting_note !== current.tasting_note ||
+    baseline.tags.join("|") !== current.tags.join("|")
+  );
+}
+
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resultSectionRef = useRef<HTMLElement | null>(null);
@@ -58,6 +83,10 @@ export default function Home() {
   const [isSavingCatalog, setIsSavingCatalog] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [sessionSavedSignatures, setSessionSavedSignatures] = useState<Set<string>>(() => new Set());
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [saveDraft, setSaveDraft] = useState<CatalogSaveDraft | null>(null);
+  const [saveDraftBaseline, setSaveDraftBaseline] = useState<CatalogSaveDraft | null>(null);
+  const [saveTagInput, setSaveTagInput] = useState("");
   const fruitProfileRows = analysisResult ? buildFruitProfileRows(analysisResult) : [];
   const currentAnalysisSignature = useMemo(
     () => (rawAnalysisResult ? serializeAnalysisResult(rawAnalysisResult) : ""),
@@ -78,8 +107,18 @@ export default function Home() {
     resultSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [analysisError, analysisResult, hasAnalyzed, isAnalyzing, isCompressing]);
 
-  const handleSaveCatalog = async () => {
+  const openSaveModal = () => {
+    if (!rawAnalysisResult || !selectedFile || !analysisResult) return;
+    const draft = createCatalogSaveDraftFromAnalysis(rawAnalysisResult);
+    setSaveDraft(draft);
+    setSaveDraftBaseline(draft);
+    setSaveTagInput("");
+    setIsSaveModalOpen(true);
+  };
+
+  const handleConfirmCatalogSave = async () => {
     if (!selectedFile || !rawAnalysisResult || !analysisResult) return;
+    if (!saveDraft) return;
     const analysisSignature = serializeAnalysisResult(rawAnalysisResult);
     if (sessionSavedSignatures.has(analysisSignature)) return;
 
@@ -97,15 +136,22 @@ export default function Home() {
           return next;
         });
         setToastMessage("此分析已在圖鑑中");
+        setIsSaveModalOpen(false);
+        setSaveDraft(null);
+        setSaveDraftBaseline(null);
+        setSaveTagInput("");
         return;
       }
 
       const thumbnailData = await createThumbnailDataUrl(selectedFile);
+      const isEdited = hasSaveDraftChanged(saveDraftBaseline, saveDraft);
       await catalogDB.entries.add(
         createCatalogEntryFromAnalysis({
           image_data: thumbnailData,
           analysis_result: rawAnalysisResult,
           app_version: version,
+          overrides: saveDraft,
+          is_edited: isEdited,
         })
       );
 
@@ -115,6 +161,10 @@ export default function Home() {
         return next;
       });
       setToastMessage("已加入圖鑑");
+      setIsSaveModalOpen(false);
+      setSaveDraft(null);
+      setSaveDraftBaseline(null);
+      setSaveTagInput("");
     } catch {
       setToastMessage("加入圖鑑失敗，請稍後再試");
     } finally {
@@ -138,6 +188,10 @@ export default function Home() {
           setAnalysisResult(null);
           setRawAnalysisResult(null);
           setAnalysisError(null);
+          setIsSaveModalOpen(false);
+          setSaveDraft(null);
+          setSaveDraftBaseline(null);
+          setSaveTagInput("");
           setIsCompressing(true);
           setHasAnalyzed(false);
           e.target.value = "";
@@ -236,7 +290,7 @@ export default function Home() {
               <button
                 type="button"
                 disabled={isSavingCatalog || !selectedFile || !rawAnalysisResult || isCurrentSavedInSession}
-                onClick={() => void handleSaveCatalog()}
+                onClick={openSaveModal}
                 className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium shadow-md transition ${
                   isCurrentSavedInSession
                     ? "cursor-not-allowed border border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -310,6 +364,160 @@ export default function Home() {
     <div className="pointer-events-none fixed bottom-3 right-4 text-xs text-gray-400">
       v{version}
     </div>
+    {isSaveModalOpen && saveDraft ? (
+      <div className="fixed inset-0 z-50 bg-black/40 px-4 py-6 sm:px-6">
+        <div className="mx-auto max-h-full w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-4 shadow-xl sm:p-5">
+          <h3 className="text-base font-semibold text-gray-900">收錄到水果圖鑑</h3>
+          <p className="mt-1 text-xs text-gray-500">可先微調關鍵資訊，再確認收錄。</p>
+
+          <div className="mt-4 space-y-3">
+            <label className="block space-y-1">
+              <span className="text-xs text-gray-500">推定品種</span>
+              <input
+                value={saveDraft.possible_variety_display}
+                onChange={(e) =>
+                  setSaveDraft({ ...saveDraft, possible_variety_display: e.target.value })
+                }
+                className="min-h-10 w-full rounded-lg border border-gray-200 px-3 text-sm"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-gray-500">產地</span>
+              <input
+                value={saveDraft.origin_display}
+                onChange={(e) => setSaveDraft({ ...saveDraft, origin_display: e.target.value })}
+                className="min-h-10 w-full rounded-lg border border-gray-200 px-3 text-sm"
+              />
+            </label>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-xs text-gray-500">狀態</span>
+                <select
+                  value={saveDraft.status}
+                  onChange={(e) =>
+                    setSaveDraft({
+                      ...saveDraft,
+                      status: e.target.value === "tried" ? "tried" : "want",
+                    })
+                  }
+                  className="min-h-10 w-full rounded-lg border border-gray-200 px-3 text-sm"
+                >
+                  <option value="want">想試</option>
+                  <option value="tried">已試</option>
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs text-gray-500">評分</span>
+                <select
+                  value={saveDraft.rating ?? ""}
+                  onChange={(e) =>
+                    setSaveDraft({
+                      ...saveDraft,
+                      rating: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                  className="min-h-10 w-full rounded-lg border border-gray-200 px-3 text-sm"
+                >
+                  <option value="">未評分</option>
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <option key={value} value={value}>
+                      {value} 分
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label className="block space-y-1">
+              <span className="text-xs text-gray-500">品飲筆記</span>
+              <textarea
+                value={saveDraft.tasting_note}
+                onChange={(e) => setSaveDraft({ ...saveDraft, tasting_note: e.target.value })}
+                rows={3}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              />
+            </label>
+
+            <div className="space-y-2">
+              <span className="text-xs text-gray-500">標籤</span>
+              {saveDraft.tags.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {saveDraft.tags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() =>
+                        setSaveDraft({
+                          ...saveDraft,
+                          tags: saveDraft.tags.filter((item) => item !== tag),
+                        })
+                      }
+                      className="min-h-9 rounded-full bg-gray-100 px-3 text-xs text-gray-600"
+                    >
+                      #{tag} ×
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">尚未設定標籤</p>
+              )}
+              <div className="flex gap-2">
+                <input
+                  value={saveTagInput}
+                  onChange={(e) => setSaveTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    const normalized = normalizeTag(saveTagInput);
+                    if (!normalized || saveDraft.tags.includes(normalized)) return;
+                    setSaveDraft({ ...saveDraft, tags: [...saveDraft.tags, normalized] });
+                    setSaveTagInput("");
+                  }}
+                  placeholder="新增標籤"
+                  className="min-h-10 flex-1 rounded-lg border border-gray-200 px-3 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const normalized = normalizeTag(saveTagInput);
+                    if (!normalized || saveDraft.tags.includes(normalized)) return;
+                    setSaveDraft({ ...saveDraft, tags: [...saveDraft.tags, normalized] });
+                    setSaveTagInput("");
+                  }}
+                  className="min-h-10 rounded-full bg-black px-4 text-sm text-white"
+                >
+                  加入
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSaveModalOpen(false);
+                setSaveDraft(null);
+                setSaveDraftBaseline(null);
+                setSaveTagInput("");
+              }}
+              className="min-h-10 rounded-lg px-3 text-sm text-gray-500 hover:bg-gray-100"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleConfirmCatalogSave()}
+              disabled={isSavingCatalog}
+              className="min-h-10 rounded-full bg-black px-4 text-sm text-white shadow-sm disabled:bg-gray-300"
+            >
+              {isSavingCatalog ? "收錄中…" : "確認收錄"}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
     {toastMessage ? (
       <div className="pointer-events-none fixed bottom-10 left-1/2 z-40 -translate-x-1/2 rounded-full bg-black px-4 py-2 text-xs text-white shadow-lg">
         {toastMessage}

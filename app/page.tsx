@@ -4,7 +4,7 @@ import imageCompression from "browser-image-compression";
 import { useEffect, useMemo, useRef, useState } from "react";
 import packageJson from "../package.json";
 import { buildFruitProfileRows, normalizeAnalysisResult } from "@/lib/fruitProfile";
-import { catalogDB, serializeAnalysisResult } from "@/lib/catalogDB";
+import { catalogDB, createCatalogEntryFromAnalysis, serializeAnalysisResult } from "@/lib/catalogDB";
 import type { AnalysisResult } from "@/lib/fruitProfile";
 
 async function createThumbnailDataUrl(file: File): Promise<string> {
@@ -101,15 +101,13 @@ export default function Home() {
       }
 
       const thumbnailData = await createThumbnailDataUrl(selectedFile);
-      await catalogDB.entries.add({
-        image_data: thumbnailData,
-        analysis_result: rawAnalysisResult,
-        fruit_category_display: analysisResult.fruit_category_display,
-        possible_variety_display: analysisResult.possible_variety_display,
-        origin_display: analysisResult.origin_display,
-        created_at: Date.now(),
-        app_version: version,
-      });
+      await catalogDB.entries.add(
+        createCatalogEntryFromAnalysis({
+          image_data: thumbnailData,
+          analysis_result: rawAnalysisResult,
+          app_version: version,
+        })
+      );
 
       setSessionSavedSignatures((prev) => {
         const next = new Set(prev);

@@ -75,31 +75,30 @@ function extractOriginTags(originDisplay: string): string[] {
 
   const countries = ["日本", "韓國", "台灣", "中國", "美國", "澳洲", "紐西蘭", "智利", "秘魯", "泰國", "越南"];
   const tags: string[] = [];
+  let countryTag = "";
 
   for (const country of countries) {
-    if (value.includes(country)) tags.push(country);
+    if (value.includes(country)) {
+      countryTag = country;
+      tags.push(country);
+      break;
+    }
   }
 
   const regionRegex = /([\u3400-\u9fffA-Za-z]{1,10})(?:縣|道|州|府|市|郡|省|區)/g;
+  let regionTag = "";
   for (const match of value.matchAll(regionRegex)) {
-    if (match[1]) tags.push(match[1]);
+    if (match[1]) {
+      const normalized = match[1].trim();
+      if (normalized && normalized !== countryTag) {
+        regionTag = normalized;
+        break;
+      }
+    }
   }
 
-  const regionHints = value
-    .replace(/[()（）]/g, " ")
-    .replace(/[\/,，、]/g, " ")
-    .split(/\s+/)
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-    .map((segment) =>
-      segment
-        .replace(/^(日本|韓國|台灣|中國|美國|澳洲|紐西蘭|智利|秘魯|泰國|越南)/, "")
-        .replace(/(縣|道|州|府|市|郡|省|區)$/g, "")
-    )
-    .filter((segment) => segment.length >= 2 && segment.length <= 8);
-
-  tags.push(...regionHints);
-  return Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)));
+  if (regionTag) tags.push(regionTag);
+  return Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean))).slice(0, 2);
 }
 
 export function generateDefaultTags(input: {
@@ -111,7 +110,7 @@ export function generateDefaultTags(input: {
     tags.push(input.fruit_category_display.trim());
   }
   tags.push(...extractOriginTags(input.origin_display));
-  return Array.from(new Set(tags.map((tag) => normalizeTag(tag)).filter(Boolean)));
+  return Array.from(new Set(tags.map((tag) => normalizeTag(tag)).filter(Boolean))).slice(0, 4);
 }
 
 export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalogEntry {
@@ -204,8 +203,10 @@ export function createCatalogEntryFromAnalysis(input: {
   const normalized = normalizeAnalysisResult(input.analysis_result);
   const draftDefaults = createCatalogSaveDraftFromAnalysis(input.analysis_result);
   const status = input.overrides?.status === "tried" ? "tried" : draftDefaults.status;
+  const hasTagsOverride =
+    !!input.overrides && Object.prototype.hasOwnProperty.call(input.overrides, "tags");
   const normalizedOverrideTags = normalizeTags(input.overrides?.tags);
-  const tags = normalizedOverrideTags.length > 0 ? normalizedOverrideTags : draftDefaults.tags;
+  const tags = hasTagsOverride ? normalizedOverrideTags : draftDefaults.tags;
   const ratingRaw = input.overrides?.rating;
   const rating =
     typeof ratingRaw === "number" && Number.isInteger(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5

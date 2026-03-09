@@ -40,6 +40,16 @@ export default function CatalogPage() {
   );
   const selectedRows = selectedAnalysisResult ? buildFruitProfileRows(selectedAnalysisResult) : [];
 
+  const handleDeleteEntry = async (id: number | undefined) => {
+    if (typeof id !== "number") return;
+    const confirmed = window.confirm("確定刪除此圖鑑項目？");
+    if (!confirmed) return;
+
+    await catalogDB.entries.delete(id);
+    setEntries((prev) => prev.filter((entry) => entry.id !== id));
+    setSelectedEntry((prev) => (prev?.id === id ? null : prev));
+  };
+
   return (
     <>
       <main className="min-h-screen bg-gray-50 px-4 pb-12 pt-24 text-black sm:px-6">
@@ -65,30 +75,41 @@ export default function CatalogPage() {
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {entries.map((entry) => (
-                <button
+                <article
                   key={entry.id}
-                  type="button"
-                  onClick={() => setSelectedEntry(entry)}
-                  className="overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <div className="aspect-[4/3] w-full bg-gray-100">
-                    <img
-                      src={entry.image_data}
-                      alt={`${entry.fruit_category_display || "水果"}收藏圖鑑圖片`}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div className="space-y-2 px-4 py-4">
-                    <p className="text-xs text-gray-400">{formatDate(entry.created_at)}</p>
-                    <p className="text-base font-semibold text-gray-900">
-                      {entry.fruit_category_display || "未分類水果"}
-                    </p>
-                    <p className="text-sm text-gray-700">
-                      {entry.possible_variety_display || "未標註品種"}
-                    </p>
-                    <p className="text-sm text-gray-500">{entry.origin_display || "產地未標註"}</p>
-                  </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEntry(entry)}
+                    className="block w-full text-left"
+                  >
+                    <div className="aspect-[4/3] w-full bg-gray-100">
+                      <img
+                        src={entry.image_data}
+                        alt={`${entry.fruit_category_display || "水果"}收藏圖鑑圖片`}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <div className="space-y-2 px-4 py-4">
+                      <p className="text-xs text-gray-400">{formatDate(entry.created_at)}</p>
+                      <p className="text-base font-semibold text-gray-900">
+                        {entry.fruit_category_display || "未分類水果"}
+                      </p>
+                      <p className="text-sm text-gray-700">
+                        {entry.possible_variety_display || "未標註品種"}
+                      </p>
+                      <p className="text-sm text-gray-500">{entry.origin_display || "產地未標註"}</p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteEntry(entry.id)}
+                    className="absolute top-3 right-3 rounded-full border border-gray-200 bg-white/95 px-2.5 py-1 text-xs text-gray-500 shadow-sm transition hover:border-red-200 hover:text-red-600"
+                  >
+                    刪除
+                  </button>
+                </article>
               ))}
             </div>
           )}

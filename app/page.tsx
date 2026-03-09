@@ -1,103 +1,45 @@
 "use client";
 
 import imageCompression from "browser-image-compression";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import packageJson from "../package.json";
+import { buildFruitProfileRows, normalizeAnalysisResult } from "@/lib/fruitProfile";
+import { catalogDB, serializeAnalysisResult } from "@/lib/catalogDB";
+import type { AnalysisResult } from "@/lib/fruitProfile";
 
-type AnalysisResult = {
-  fruit_category_display: string;
-  fruit_category_original: string;
-  possible_variety_display: string;
-  possible_variety_original: string;
-  variety_characteristics: string;
-  origin_display: string;
-  brand_or_farm_display: string;
-  grade_display: string;
-  season_months: string;
-  summary_zh_tw: string;
-  notes: string;
-  detected_text_lines: string[];
-};
+async function createThumbnailDataUrl(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("圖片載入失敗"));
+    img.src = objectUrl;
+  });
 
-type FruitProfileRow = {
-  label: string;
-  value: string;
-  bulletItems?: string[];
-};
+  try {
+    const maxSide = 800;
+    const quality = 0.8;
+    const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("縮圖失敗：無法建立繪圖環境");
+    }
 
-function normalizeAnalysisResult(data: Record<string, unknown>): AnalysisResult {
-  const str = (v: unknown) => (typeof v === "string" ? v : "");
-  const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
-  return {
-    fruit_category_display: str(data.fruit_category_display),
-    fruit_category_original: str(data.fruit_category_original),
-    possible_variety_display: str(data.possible_variety_display),
-    possible_variety_original: str(data.possible_variety_original),
-    variety_characteristics: str(data.variety_characteristics),
-    origin_display: str(data.origin_display),
-    brand_or_farm_display: str(data.brand_or_farm_display),
-    grade_display: str(data.grade_display),
-    season_months: str(data.season_months),
-    summary_zh_tw: str(data.summary_zh_tw),
-    notes: str(data.notes),
-    detected_text_lines: arr(data.detected_text_lines),
-  };
-}
-
-function hasCjkIdeograph(text: string): boolean {
-  return /[\u3400-\u9FFF]/.test(text);
-}
-
-function formatVarietyDisplay(display: string, original: string): string {
-  const normalizedDisplay = display.trim();
-  const normalizedOriginal = original.trim();
-  if (!normalizedDisplay) return "";
-  if (!normalizedOriginal) return normalizedDisplay;
-  return hasCjkIdeograph(normalizedDisplay)
-    ? `${normalizedDisplay}（${normalizedOriginal}）`
-    : normalizedDisplay;
-}
-
-function parseVarietyCharacteristics(text: string): string[] {
-  const normalized = text.trim();
-  if (!normalized) return [];
-
-  const strippedLines = normalized
-    .split(/\r?\n/)
-    .map((line) => line.trim().replace(/^[-*•●○▪▫・‧]\s*/, ""))
-    .filter((line) => line.length > 0);
-
-  const seed = strippedLines.length > 0 ? strippedLines : [normalized];
-  const phrases = seed
-    .flatMap((line) => line.split(/[；;、]/))
-    .map((item) => item.trim().replace(/^[-*•●○▪▫・‧]\s*/, "").replace(/[。]+$/g, ""))
-    .filter((item) => item.length > 0);
-
-  return Array.from(new Set(phrases));
-}
-
-function buildFruitProfileRows(result: AnalysisResult): FruitProfileRow[] {
-  const formattedVarietyDisplay = formatVarietyDisplay(
-    result.possible_variety_display,
-    result.possible_variety_original
-  );
-  const varietyCharacteristicsItems = parseVarietyCharacteristics(result.variety_characteristics);
-
-  const rows: FruitProfileRow[] = [
-    { label: "水果類別", value: result.fruit_category_display },
-    { label: "推定品種", value: formattedVarietyDisplay },
-    {
-      label: "品種特點",
-      value: result.variety_characteristics,
-      bulletItems: varietyCharacteristicsItems,
-    },
-    { label: "產地", value: result.origin_display },
-    { label: "品牌 / 農園", value: result.brand_or_farm_display },
-    { label: "產季", value: result.season_months },
-    { label: "備註", value: result.notes },
-  ];
-
-  return rows.filter((row) => row.value.trim().length > 0);
+    context.drawImage(image, 0, 0, width, height);
+    const webpData = canvas.toDataURL("image/webp", quality);
+    if (webpData.startsWith("data:image/webp")) {
+      return webpData;
+    }
+    return canvas.toDataURL("image/jpeg", quality);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 const version = packageJson.version;
@@ -110,8 +52,24 @@ export default function Home() {
   const [isCompressing, setIsCompressing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [rawAnalysisResult, setRawAnalysisResult] = useState<Record<string, unknown> | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [isSavingCatalog, setIsSavingCatalog] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [sessionSavedSignatures, setSessionSavedSignatures] = useState<Set<string>>(() => new Set());
   const fruitProfileRows = analysisResult ? buildFruitProfileRows(analysisResult) : [];
+  const currentAnalysisSignature = useMemo(
+    () => (rawAnalysisResult ? serializeAnalysisResult(rawAnalysisResult) : ""),
+    [rawAnalysisResult]
+  );
+  const isCurrentSavedInSession =
+    currentAnalysisSignature.length > 0 && sessionSavedSignatures.has(currentAnalysisSignature);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = window.setTimeout(() => setToastMessage(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [toastMessage]);
 
   return (
     <>
@@ -127,6 +85,7 @@ export default function Home() {
           setPreviewUrl(url);
           setSelectedFile(file);
           setAnalysisResult(null);
+          setRawAnalysisResult(null);
           setAnalysisError(null);
           setIsCompressing(true);
           setHasAnalyzed(false);
@@ -158,12 +117,15 @@ export default function Home() {
             }
             if (!res.ok) {
               setAnalysisError(String(data?.error ?? "發生未知錯誤"));
+              setRawAnalysisResult(null);
               setHasAnalyzed(true);
             } else if (data.error) {
               setAnalysisError(String(data.error));
+              setRawAnalysisResult(null);
               setHasAnalyzed(true);
             } else {
               setAnalysisResult(normalizeAnalysisResult(data));
+              setRawAnalysisResult(data);
               setHasAnalyzed(true);
             }
           } catch (err) {
@@ -173,6 +135,7 @@ export default function Home() {
                 ? "無法連線到伺服器（Failed to fetch）。請確認：① 終端機有執行 npm run dev 且無報錯 ② 網址為 http://localhost:3000 ③ 網路或防火牆未阻擋。"
                 : msg;
             setAnalysisError(friendly);
+            setRawAnalysisResult(null);
             setHasAnalyzed(true);
           } finally {
             setIsCompressing(false);
@@ -274,6 +237,65 @@ export default function Home() {
                     目前未擷取到可展示的水果資訊。
                   </p>
                 )}
+                <div className="mt-5 flex justify-end">
+                  <button
+                    type="button"
+                    disabled={isSavingCatalog || !selectedFile || !rawAnalysisResult || isCurrentSavedInSession}
+                    onClick={async () => {
+                      if (!selectedFile || !rawAnalysisResult) return;
+                      const analysisSignature = serializeAnalysisResult(rawAnalysisResult);
+                      if (sessionSavedSignatures.has(analysisSignature)) return;
+
+                      setIsSavingCatalog(true);
+                      try {
+                        const existingEntries = await catalogDB.entries.toArray();
+                        const isDuplicate = existingEntries.some(
+                          (entry) =>
+                            serializeAnalysisResult(entry.analysis_result) === analysisSignature
+                        );
+
+                        if (isDuplicate) {
+                          setSessionSavedSignatures((prev) => {
+                            const next = new Set(prev);
+                            next.add(analysisSignature);
+                            return next;
+                          });
+                          setToastMessage("此分析已在圖鑑中");
+                          return;
+                        }
+
+                        const thumbnailData = await createThumbnailDataUrl(selectedFile);
+                        await catalogDB.entries.add({
+                          image_data: thumbnailData,
+                          analysis_result: rawAnalysisResult,
+                          fruit_category_display: analysisResult.fruit_category_display,
+                          possible_variety_display: analysisResult.possible_variety_display,
+                          origin_display: analysisResult.origin_display,
+                          created_at: Date.now(),
+                          app_version: version,
+                        });
+
+                        setSessionSavedSignatures((prev) => {
+                          const next = new Set(prev);
+                          next.add(analysisSignature);
+                          return next;
+                        });
+                        setToastMessage("已加入圖鑑");
+                      } catch {
+                        setToastMessage("加入圖鑑失敗，請稍後再試");
+                      } finally {
+                        setIsSavingCatalog(false);
+                      }
+                    }}
+                    className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                      isCurrentSavedInSession
+                        ? "cursor-not-allowed border border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "bg-black text-white hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300"
+                    }`}
+                  >
+                    {isSavingCatalog ? "加入中…" : isCurrentSavedInSession ? "已加入圖鑑" : "加入圖鑑"}
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-6 text-sm text-gray-400">
@@ -287,6 +309,11 @@ export default function Home() {
     <div className="pointer-events-none fixed bottom-3 right-4 text-xs text-gray-400">
       v{version}
     </div>
+    {toastMessage ? (
+      <div className="pointer-events-none fixed bottom-10 left-1/2 z-40 -translate-x-1/2 rounded-full bg-black px-4 py-2 text-xs text-white shadow-lg">
+        {toastMessage}
+      </div>
+    ) : null}
     </>
   );
 }

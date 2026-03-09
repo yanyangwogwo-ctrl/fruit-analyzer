@@ -2,6 +2,7 @@
 
 import imageCompression from "browser-image-compression";
 import { useRef, useState } from "react";
+import packageJson from "../package.json";
 
 type AnalysisResult = {
   fruit_category_display: string;
@@ -55,6 +56,8 @@ function buildFruitProfileRows(result: AnalysisResult): FruitProfileRow[] {
 
   return rows.filter((row) => row.value.trim().length > 0);
 }
+
+const version = packageJson.version;
 
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -137,7 +140,7 @@ export default function Home() {
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-6 text-center">
       <h1 className="text-4xl font-bold tracking-tight">
-          水果品種鑑定師v0.1
+          水果品種鑑定師
         </h1>
 
         <section className="mt-8 w-full rounded-2xl border border-gray-200 bg-white p-6 text-left shadow-sm">
@@ -230,6 +233,9 @@ export default function Home() {
         </section>
       </div>
     </main>
+    <div className="pointer-events-none fixed bottom-3 right-4 text-xs text-gray-400">
+      v{version}
+    </div>
     </>
   );
 }

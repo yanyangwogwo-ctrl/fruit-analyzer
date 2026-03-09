@@ -16,11 +16,14 @@ Guidelines:
 1. Analyze the full packaging image (text and design). Extract meaningful detected text into detected_text_lines (array of strings).
 2. Identify the marketed product using packaging text and/or packaging design cues. Fill identified_product_name only if a specific marketed product or product line can be identified with reasonable confidence; otherwise "".
 3. identified_product_confidence: "high" | "medium" | "low" | "" (empty if no product identified).
-4. Variety (possible_variety_*):
+4. Variety (possible_variety_* and variety_characteristics):
    - If variety is explicitly written on the package: set possible_variety_basis = "explicit_package_text". possible_variety_original must contain ONLY variety text directly visible on the package.
    - If variety is inferred from a clearly identified product: set possible_variety_basis = "identified_product_inference".
    - Otherwise leave possible_variety_basis and variety fields empty.
    - Never infer variety from fruit appearance alone. Never treat inferred variety as if it were directly written on the package.
+   - If possible_variety_display is filled and the cultivar is reasonably known, provide variety_characteristics with a short factual horticultural description of typical cultivar traits (e.g., sweetness level, acidity balance, aroma, flesh color, texture, distinguishing traits).
+   - Keep variety_characteristics neutral and factual; avoid marketing language and avoid subjective tasting storytelling.
+   - Do not invent characteristics for unknown/uncertain cultivars. If uncertain, set variety_characteristics to "".
 5. For display fields prefer Traditional Chinese when a stable common name exists. For origin_display use normalized names (e.g. "日本宮城縣", "韓國慶尚北道"). For possible_variety_display use common Chinese name if widely used; otherwise original language or English. Do NOT invent a Chinese translation for a variety name.
 6. confidence_level: overall confidence for the whole analysis ("high" | "medium" | "low" | "").
 
@@ -41,6 +44,7 @@ Respond with ONLY a valid JSON object in this exact shape:
   "possible_variety_display": "",
   "possible_variety_original": "",
   "possible_variety_basis": "",
+  "variety_characteristics": "",
   "origin_display": "",
   "brand_or_farm_display": "",
   "grade_display": "",
@@ -50,6 +54,51 @@ Respond with ONLY a valid JSON object in this exact shape:
   "confidence_level": "",
   "detected_text_lines": []
 }`;
+
+type AnalyzeResult = {
+  fruit_category_display: string;
+  fruit_category_original: string;
+  identified_product_name: string;
+  identified_product_confidence: string;
+  possible_variety_display: string;
+  possible_variety_original: string;
+  possible_variety_basis: string;
+  variety_characteristics: string;
+  origin_display: string;
+  brand_or_farm_display: string;
+  grade_display: string;
+  season_months: string;
+  summary_zh_tw: string;
+  notes: string;
+  confidence_level: string;
+  detected_text_lines: string[];
+};
+
+function normalizeAnalyzeResult(raw: unknown): AnalyzeResult {
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const str = (value: unknown) => (typeof value === "string" ? value : "");
+  const strArr = (value: unknown) =>
+    Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+
+  return {
+    fruit_category_display: str(obj.fruit_category_display),
+    fruit_category_original: str(obj.fruit_category_original),
+    identified_product_name: str(obj.identified_product_name),
+    identified_product_confidence: str(obj.identified_product_confidence),
+    possible_variety_display: str(obj.possible_variety_display),
+    possible_variety_original: str(obj.possible_variety_original),
+    possible_variety_basis: str(obj.possible_variety_basis),
+    variety_characteristics: str(obj.variety_characteristics),
+    origin_display: str(obj.origin_display),
+    brand_or_farm_display: str(obj.brand_or_farm_display),
+    grade_display: str(obj.grade_display),
+    season_months: str(obj.season_months),
+    summary_zh_tw: str(obj.summary_zh_tw),
+    notes: str(obj.notes),
+    confidence_level: str(obj.confidence_level),
+    detected_text_lines: strArr(obj.detected_text_lines),
+  };
+}
 
 export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -119,7 +168,8 @@ export async function POST(request: Request) {
     }
 
     const json = JSON.parse(text);
-    return NextResponse.json(json, {
+    const normalized = normalizeAnalyzeResult(json);
+    return NextResponse.json(normalized, {
       headers: { "X-Gemini-Model": modelName },
     });
   } catch (err) {

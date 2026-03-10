@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { href: "/", label: "鑑定" },
-  { href: "/catalog", label: "圖鑑" },
+  { href: "/", label: "鑑定", key: "analyze" },
+  { href: "/want", label: "想試", key: "want" },
+  { href: "/catalog", label: "圖鑑", key: "tried" },
 ];
 
 export default function AppNav() {
@@ -18,12 +19,14 @@ export default function AppNav() {
         <div className="flex w-full items-center gap-1 rounded-full bg-gray-100 p-1">
           {navItems.map((item) => {
             const isActive =
-              item.href === "/"
-                ? pathname === item.href
-                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              item.key === "analyze"
+                ? pathname === "/"
+                : item.key === "want"
+                  ? pathname === "/want"
+                  : pathname === "/catalog";
             return (
               <Link
-                key={item.href}
+                key={item.key}
                 href={item.href}
                 className={`flex min-h-11 flex-1 items-center justify-center rounded-full px-4 py-2 text-sm transition ${
                   isActive

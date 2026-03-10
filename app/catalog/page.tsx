@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   catalogDB,
   normalizeCatalogEntry,
@@ -9,6 +10,8 @@ import {
 } from "@/lib/catalogDB";
 import { toHongKongTerminology } from "@/lib/hkTerminology";
 
+type SortMode = "latest" | "earliest" | "updated";
+
 type FullEditDraft = {
   fruit_category_display: string;
   possible_variety_display: string;
@@ -16,14 +19,6 @@ type FullEditDraft = {
   season_months: string;
   summary_zh_tw: string;
 };
-
-const statusFilterOptions: Array<{ value: "all" | CatalogStatus; label: string }> = [
-  { value: "all", label: "全部" },
-  { value: "want", label: "想試" },
-  { value: "tried", label: "已試" },
-];
-
-type SortMode = "latest" | "earliest" | "updated";
 
 function formatDate(timestamp: number): string {
   return new Intl.DateTimeFormat("zh-TW", {
@@ -102,10 +97,12 @@ function detectImageExt(dataUrl: string): string {
 }
 
 export default function CatalogPage() {
+  const pathname = usePathname();
+  const catalogMode: CatalogStatus = pathname === "/want" ? "want" : "tried";
+
   const [entries, setEntries] = useState<FruitCatalogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<FruitCatalogEntry | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | CatalogStatus>("all");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>("latest");
   const [quickTagInput, setQuickTagInput] = useState("");
@@ -134,30 +131,36 @@ export default function CatalogPage() {
   }, [selectedEntry]);
 
   useEffect(() => {
+    setSelectedTags([]);
+  }, [catalogMode]);
+
+  useEffect(() => {
     return () => {
       if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
     };
   }, [replacementImagePreviewUrl]);
 
+  const modeEntries = useMemo(
+    () => entries.filter((entry) => entry.status === catalogMode),
+    [catalogMode, entries]
+  );
+
   const allTags = useMemo(() => {
     const unique = new Set<string>();
-    for (const entry of entries) {
+    for (const entry of modeEntries) {
       for (const tag of entry.tags) unique.add(tag);
     }
     return Array.from(unique).sort((a, b) => a.localeCompare(b, "zh-Hant"));
-  }, [entries]);
+  }, [modeEntries]);
 
   const filteredEntries = useMemo(
     () =>
-      entries.filter((entry) => {
-        if (statusFilter !== "all" && entry.status !== statusFilter) return false;
-        if (selectedTags.length > 0) {
-          const tagSet = new Set(entry.tags);
-          return selectedTags.every((tag) => tagSet.has(tag));
-        }
-        return true;
+      modeEntries.filter((entry) => {
+        if (selectedTags.length === 0) return true;
+        const tagSet = new Set(entry.tags);
+        return selectedTags.every((tag) => tagSet.has(tag));
       }),
-    [entries, selectedTags, statusFilter]
+    [modeEntries, selectedTags]
   );
 
   const sortedEntries = useMemo(() => {
@@ -324,26 +327,11 @@ export default function CatalogPage() {
             <p className="mt-1 text-sm text-gray-500">已收錄 {sortedEntries.length} 項</p>
           </header>
 
-          {!isLoading && entries.length > 0 ? (
+          {!isLoading && modeEntries.length > 0 ? (
             <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
               <div className="flex items-center gap-2">
-                <div className="flex-1 rounded-full bg-gray-100 p-1">
-                  <div className="grid grid-cols-3 gap-1">
-                    {statusFilterOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setStatusFilter(option.value)}
-                        className={`min-h-10 rounded-full text-sm transition ${
-                          statusFilter === option.value
-                            ? "bg-black text-white"
-                            : "text-gray-600 hover:bg-white hover:text-gray-900"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">
+                  目前檢視：{catalogMode === "want" ? "想試" : "圖鑑"}
                 </div>
                 <select
                   value={sortMode}
@@ -383,27 +371,23 @@ export default function CatalogPage() {
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
               正在載入圖鑑⋯⋯
             </div>
-          ) : entries.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center">
-              <p className="text-lg font-medium text-gray-700">你的水果圖鑑仍然是空的</p>
-              <p className="mt-2 text-sm text-gray-500">先分析一個水果並加入圖鑑吧！</p>
+          ) : modeEntries.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
+              {catalogMode === "want" ? "暫時未有想試水果" : "暫時未有已試水果"}
             </div>
           ) : sortedEntries.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
               <p>沒有符合條件的水果</p>
               <button
                 type="button"
-                onClick={() => {
-                  setStatusFilter("all");
-                  setSelectedTags([]);
-                }}
+                onClick={() => setSelectedTags([])}
                 className="mt-2 rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600"
               >
                 試試清除篩選條件
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
               {sortedEntries.map((entry) => {
                 const title = entry.possible_variety_display || entry.fruit_category_display || "未命名水果";
                 return (
@@ -423,38 +407,16 @@ export default function CatalogPage() {
                           className="h-full w-full object-cover"
                         />
                       </div>
-                      <div className="space-y-1.5 px-2.5 py-2.5">
+                      <div className="space-y-1.5 px-2 py-2">
                         <p className="line-clamp-1 text-xs font-semibold text-gray-900 sm:text-sm">
                           {toHongKongTerminology(title)}
                         </p>
                         <p className="line-clamp-1 text-[11px] text-gray-500 sm:text-xs">
                           {toHongKongTerminology(entry.origin_display || "產地未標註")}
                         </p>
-                        {entry.tags.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {entry.tags.slice(0, 2).map((tag) => (
-                              <span
-                                key={tag}
-                                className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500"
-                              >
-                                {toHongKongTerminology(tag)}
-                              </span>
-                            ))}
-                          </div>
+                        {entry.rating ? (
+                          <p className="text-[11px] font-medium text-amber-500">{renderStars(entry.rating)}</p>
                         ) : null}
-                        <div className="text-[11px] text-gray-600">
-                          {entry.status === "want" ? (
-                            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-amber-700">
-                              🟡 想試
-                            </span>
-                          ) : entry.rating ? (
-                            <span className="font-medium text-amber-500">{renderStars(entry.rating)}</span>
-                          ) : (
-                            <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-emerald-700">
-                              已試
-                            </span>
-                          )}
-                        </div>
                       </div>
                     </button>
                   </article>
@@ -557,7 +519,6 @@ export default function CatalogPage() {
                       />
                     </label>
                   </div>
-
                   <label className="block space-y-1 text-sm">
                     <span className="text-gray-500">水果類別</span>
                     <input

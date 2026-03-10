@@ -66,9 +66,9 @@ function renderStars(rating: number | null): string {
 
 function getCardTitleClass(title: string): string {
   const length = Array.from(title).length;
-  if (length <= 8) return "text-[13px] leading-4 sm:text-sm";
-  if (length <= 18) return "line-clamp-2 text-[11.5px] leading-4 sm:text-[12.5px]";
-  return "line-clamp-2 text-[10.5px] leading-3.5 sm:text-[11.5px]";
+  if (length <= 8) return "line-clamp-2 text-[12.5px] leading-4 sm:text-sm";
+  if (length <= 18) return "line-clamp-2 text-[11px] leading-4 sm:text-[12px]";
+  return "line-clamp-2 text-[10px] leading-3.5 sm:text-[11px]";
 }
 
 function handleToggleRating(current: number | null, nextValue: number): number | null {
@@ -139,7 +139,7 @@ function createPlaceholderImageDataUrl(name: string, category: string): string {
 }
 
 function createFallbackPlaceholderDataUrl(): string {
-  return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512'><rect width='100%25' height='100%25' fill='%23e2e8f0'/><text x='50%25' y='52%25' dominant-baseline='middle' text-anchor='middle' font-size='180'>%F0%9F%8D%8F</text></svg>";
+  return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23f8fafc'/><stop offset='100%25' stop-color='%23e2e8f0'/></linearGradient></defs><rect width='100%25' height='100%25' fill='url(%23g)'/><text x='50%25' y='52%25' dominant-baseline='middle' text-anchor='middle' font-size='180'>%F0%9F%8D%8F</text></svg>";
 }
 
 function createQuickAddAnalysisResult(input: {
@@ -888,8 +888,11 @@ export default function CatalogPage() {
             <div className="space-y-5">
               {groupedSections.map((section) => (
                 <section key={section.category}>
-                  <h3 className="mb-2 text-sm font-semibold text-gray-700">
-                    {toHongKongTerminology(section.category)} ({section.items.length})
+                  <h3 className="mb-2.5 flex items-baseline gap-1.5">
+                    <span className="text-sm font-semibold text-gray-800">
+                      {toHongKongTerminology(section.category)}
+                    </span>
+                    <span className="text-xs font-medium text-gray-400">({section.items.length})</span>
                   </h3>
                   <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-3 sm:gap-2 lg:grid-cols-4">
                     {section.items.map((entry) => {
@@ -900,7 +903,7 @@ export default function CatalogPage() {
                       return (
                         <article
                           key={entry.id}
-                          className="overflow-hidden rounded-none border border-gray-300 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
+                          className="overflow-hidden rounded-sm border border-gray-200 bg-white shadow-sm"
                         >
                           <button
                             type="button"
@@ -914,18 +917,16 @@ export default function CatalogPage() {
                                 className="h-full w-full object-cover"
                               />
                             </div>
-                            <div className="flex flex-col items-center justify-center gap-1 px-1.5 py-1.5">
+                            <div className="flex h-16 flex-col justify-between px-1.5 py-1.5">
                               <p
                                 className={`break-words text-center font-semibold text-gray-900 ${getCardTitleClass(localizedTitle)}`}
                                 title={localizedTitle}
                               >
                                 {localizedTitle}
                               </p>
-                              {entry.rating ? (
-                                <p className="text-base font-bold leading-4 tracking-[-0.08em] text-amber-500">
-                                  {renderStars(entry.rating)}
-                                </p>
-                              ) : null}
+                              <p className="h-5 text-center text-[15px] font-bold leading-5 tracking-[-0.08em] text-amber-500">
+                                {entry.rating ? renderStars(entry.rating) : ""}
+                              </p>
                             </div>
                           </button>
                         </article>
@@ -1515,6 +1516,10 @@ export default function CatalogPage() {
                           "未命名水果"
                       )}
                     </h3>
+                    {selectedEntry.possible_variety_original &&
+                    !selectedEntry.possible_variety_display.includes(selectedEntry.possible_variety_original) ? (
+                      <p className="mt-1 text-xs text-gray-500">{selectedEntry.possible_variety_original}</p>
+                    ) : null}
                     <p className="mt-1 text-sm text-gray-500">
                       {toHongKongTerminology(selectedEntry.origin_display || "產地未標註")}
                     </p>
@@ -1610,6 +1615,22 @@ export default function CatalogPage() {
                   </div>
 
                   <div className="mt-4 space-y-4 rounded-2xl border border-gray-200 bg-white px-4 py-5 shadow-sm">
+                    {selectedEntry.rating ? (
+                      <section>
+                        <p className="text-xs font-medium tracking-wide text-gray-400">評分</p>
+                        <p className="mt-1 text-base font-semibold tracking-[-0.08em] text-amber-500">
+                          {renderStars(selectedEntry.rating)}
+                        </p>
+                      </section>
+                    ) : null}
+                    {selectedEntry.tasting_note ? (
+                      <section>
+                        <p className="text-xs font-medium tracking-wide text-gray-400">用戶評價</p>
+                        <p className="mt-1 text-sm leading-6 text-gray-700">
+                          {toHongKongTerminology(selectedEntry.tasting_note)}
+                        </p>
+                      </section>
+                    ) : null}
                     {selectedEntry.variety_characteristics ? (
                       <section>
                         <p className="text-xs font-medium tracking-wide text-gray-400">品種特點</p>

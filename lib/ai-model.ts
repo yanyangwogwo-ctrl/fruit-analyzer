@@ -1,4 +1,4 @@
-export const GEMINI_MODEL = "gemini-3-flash";
+export const GEMINI_MODEL = "gemini-2.5-flash";
 
 export const generationConfig = {
   temperature: 0.2,

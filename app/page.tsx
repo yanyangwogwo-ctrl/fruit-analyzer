@@ -52,6 +52,61 @@ function handleToggleRating(current: number | null, nextValue: number): number |
   return current === nextValue ? null : nextValue;
 }
 
+function normalizeHalfStarValue(value: number | null): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(5, Math.round(value * 2) / 2));
+}
+
+function getStarFillClass(rating: number | null, starIndex: number): "full" | "half" | "empty" {
+  const safe = normalizeHalfStarValue(rating);
+  const diff = safe - starIndex + 1;
+  if (diff >= 1) return "full";
+  if (diff >= 0.5) return "half";
+  return "empty";
+}
+
+function RatingInput({
+  value,
+  onChange,
+  sizeClass = "text-2xl",
+}: {
+  value: number | null;
+  onChange: (nextValue: number) => void;
+  sizeClass?: string;
+}) {
+  return (
+    <div className={`inline-flex items-center ${sizeClass}`}>
+      {[1, 2, 3, 4, 5].map((starIndex) => {
+        const fill = getStarFillClass(value, starIndex);
+        const leftValue = starIndex - 0.5;
+        const rightValue = starIndex;
+        return (
+          <div key={starIndex} className="relative inline-flex h-[1.2em] w-[1.1em] items-center justify-center">
+            <span className="text-gray-300">★</span>
+            {fill === "full" ? (
+              <span className="absolute inset-0 overflow-hidden text-amber-500">★</span>
+            ) : fill === "half" ? (
+              <span className="absolute inset-0 w-1/2 overflow-hidden text-amber-500">★</span>
+            ) : null}
+            <button
+              type="button"
+              aria-label={`${leftValue} 星`}
+              className="absolute inset-y-0 left-0 w-1/2"
+              onClick={() => onChange(leftValue)}
+            />
+            <button
+              type="button"
+              aria-label={`${rightValue} 星`}
+              className="absolute inset-y-0 right-0 w-1/2"
+              onClick={() => onChange(rightValue)}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function hasSaveDraftChanged(
   baseline: CatalogSaveDraft | null,
   current: CatalogSaveDraft | null
@@ -266,7 +321,7 @@ export default function Home() {
       />
 
       <main className="min-h-screen bg-white text-black">
-        <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center px-4 pb-8 pt-32 text-center sm:px-6 sm:pt-36">
+        <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center px-4 pb-[calc(env(safe-area-inset-bottom)+6.5rem)] pt-5 text-center sm:px-6 sm:pt-6">
           <section className="w-full rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm sm:p-5">
             <h2 className="text-lg font-semibold text-gray-900">加入 1–3 張圖片，再開始鑑定</h2>
             <p className="mt-1 text-xs text-gray-500">可加入包裝、果實、產地貼紙（最多 3 張）。</p>
@@ -478,26 +533,16 @@ export default function Home() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">評分</p>
-                  <div className="mt-1 flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() =>
-                          setSaveDraft({
-                            ...saveDraft,
-                            rating: handleToggleRating(saveDraft.rating, value),
-                          })
-                        }
-                        className={`text-2xl leading-none transition ${
-                          (saveDraft.rating ?? 0) >= value
-                            ? "text-amber-500"
-                            : "text-gray-300 hover:text-amber-400"
-                        }`}
-                      >
-                        ★
-                      </button>
-                    ))}
+                  <div className="mt-1 flex items-center gap-2">
+                    <RatingInput
+                      value={saveDraft.rating}
+                      onChange={(value) =>
+                        setSaveDraft({
+                          ...saveDraft,
+                          rating: handleToggleRating(saveDraft.rating, value),
+                        })
+                      }
+                    />
                     <button
                       type="button"
                       onClick={() => setSaveDraft({ ...saveDraft, rating: null })}

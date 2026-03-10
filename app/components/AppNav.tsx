@@ -13,7 +13,7 @@ export default function AppNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="pointer-events-none fixed inset-x-0 z-30 flex justify-center pt-[calc(env(safe-area-inset-top)+0.5rem)]">
+    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center pb-[calc(env(safe-area-inset-bottom)+0.45rem)]">
       <div className="pointer-events-auto w-[min(92vw,20rem)] rounded-2xl border border-gray-200 bg-white/95 p-1.5 shadow-sm backdrop-blur">
         <div className="flex w-full items-center gap-1 rounded-full bg-gray-100 p-1">
           {navItems.map((item) => {

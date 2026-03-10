@@ -59,11 +59,6 @@ function normalizeTag(tag: string): string {
   return tag.trim().replace(/^#+/, "");
 }
 
-function renderStars(rating: number | null): string {
-  const count = rating ?? 0;
-  return count > 0 ? "★".repeat(count) : "";
-}
-
 function getCardTitleClass(title: string): string {
   const length = Array.from(title).length;
   if (length <= 8) return "line-clamp-2 text-[12.5px] leading-4 sm:text-sm";
@@ -73,6 +68,87 @@ function getCardTitleClass(title: string): string {
 
 function handleToggleRating(current: number | null, nextValue: number): number | null {
   return current === nextValue ? null : nextValue;
+}
+
+function normalizeHalfStarValue(value: number | null): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(5, Math.round(value * 2) / 2));
+}
+
+function getStarFillClass(rating: number | null, starIndex: number): "full" | "half" | "empty" {
+  const safe = normalizeHalfStarValue(rating);
+  const diff = safe - starIndex + 1;
+  if (diff >= 1) return "full";
+  if (diff >= 0.5) return "half";
+  return "empty";
+}
+
+function RatingStars({
+  rating,
+  sizeClass = "text-base",
+}: {
+  rating: number | null;
+  sizeClass?: string;
+}) {
+  return (
+    <div className={`inline-flex items-center leading-none ${sizeClass}`}>
+      {[1, 2, 3, 4, 5].map((starIndex) => {
+        const fill = getStarFillClass(rating, starIndex);
+        return (
+          <span key={starIndex} className="relative inline-flex h-[1em] w-[1em] items-center justify-center">
+            <span className="text-gray-300">★</span>
+            {fill === "full" ? (
+              <span className="absolute inset-0 overflow-hidden text-amber-500">★</span>
+            ) : fill === "half" ? (
+              <span className="absolute inset-0 w-1/2 overflow-hidden text-amber-500">★</span>
+            ) : null}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function RatingInput({
+  value,
+  onChange,
+  sizeClass = "text-2xl",
+}: {
+  value: number | null;
+  onChange: (nextValue: number) => void;
+  sizeClass?: string;
+}) {
+  return (
+    <div className={`inline-flex items-center ${sizeClass}`}>
+      {[1, 2, 3, 4, 5].map((starIndex) => {
+        const fill = getStarFillClass(value, starIndex);
+        const leftValue = starIndex - 0.5;
+        const rightValue = starIndex;
+        return (
+          <div key={starIndex} className="relative inline-flex h-[1.2em] w-[1.1em] items-center justify-center">
+            <span className="text-gray-300">★</span>
+            {fill === "full" ? (
+              <span className="absolute inset-0 overflow-hidden text-amber-500">★</span>
+            ) : fill === "half" ? (
+              <span className="absolute inset-0 w-1/2 overflow-hidden text-amber-500">★</span>
+            ) : null}
+            <button
+              type="button"
+              aria-label={`${leftValue} 星`}
+              className="absolute inset-y-0 left-0 w-1/2"
+              onClick={() => onChange(leftValue)}
+            />
+            <button
+              type="button"
+              aria-label={`${rightValue} 星`}
+              className="absolute inset-y-0 right-0 w-1/2"
+              onClick={() => onChange(rightValue)}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function parseBatchNames(input: string): string[] {
@@ -268,6 +344,13 @@ function sortEntriesByMode(entries: FruitCatalogEntry[], sortMode: SortMode): Fr
   return list.sort((a, b) => b.created_at - a.created_at);
 }
 
+function getSortLabel(sortMode: SortMode): string {
+  if (sortMode === "earliest") return "最早";
+  if (sortMode === "highest") return "高分";
+  if (sortMode === "lowest") return "低分";
+  return "最新";
+}
+
 const version = packageJson.version;
 
 export default function CatalogPage() {
@@ -296,6 +379,8 @@ export default function CatalogPage() {
   );
   const [isGeneratingBatch, setIsGeneratingBatch] = useState(false);
   const [isSavingQuickAdd, setIsSavingQuickAdd] = useState(false);
+  const [isSortPickerOpen, setIsSortPickerOpen] = useState(false);
+  const [isRegionPickerOpen, setIsRegionPickerOpen] = useState(false);
   const [quickAddError, setQuickAddError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -319,7 +404,15 @@ export default function CatalogPage() {
   useEffect(() => {
     setSelectedCountry("全部");
     setSortMode("latest");
+    setIsSortPickerOpen(false);
+    setIsRegionPickerOpen(false);
   }, [catalogMode]);
+
+  useEffect(() => {
+    if (!isQuickAddModalOpen && !selectedEntry) return;
+    setIsSortPickerOpen(false);
+    setIsRegionPickerOpen(false);
+  }, [isQuickAddModalOpen, selectedEntry]);
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -372,6 +465,22 @@ export default function CatalogPage() {
     const ordered = KNOWN_COUNTRIES.filter((country) => present.has(country));
     return ["全部", ...ordered, "其他"];
   }, [modeEntries]);
+
+  const sortOptions = useMemo(
+    () =>
+      catalogMode === "tried"
+        ? [
+            { value: "latest" as SortMode, label: "最新加入" },
+            { value: "earliest" as SortMode, label: "最早加入" },
+            { value: "highest" as SortMode, label: "最高評分" },
+            { value: "lowest" as SortMode, label: "最低評分" },
+          ]
+        : [
+            { value: "latest" as SortMode, label: "最新加入" },
+            { value: "earliest" as SortMode, label: "最早加入" },
+          ],
+    [catalogMode]
+  );
 
   const countryFilteredEntries = useMemo(
     () =>
@@ -489,6 +598,11 @@ export default function CatalogPage() {
     if (!selectedEntry) return;
     const next = selectedEntry.rating === value ? null : value;
     await applyPartialUpdate(selectedEntry, { rating: next }, true);
+  };
+
+  const handleQuickClearRating = async () => {
+    if (!selectedEntry || selectedEntry.rating == null) return;
+    await applyPartialUpdate(selectedEntry, { rating: null }, true);
   };
 
   const handleQuickRemoveTag = async (tag: string) => {
@@ -806,42 +920,8 @@ export default function CatalogPage() {
 
   return (
     <>
-      <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(env(safe-area-inset-bottom)+3rem)] pt-24 text-black sm:px-5 sm:pt-28">
+      <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(env(safe-area-inset-bottom)+8.5rem)] pt-5 text-black sm:px-5 sm:pt-6">
         <div className="mx-auto w-full max-w-5xl">
-          {!isLoading ? (
-            <div className="mb-3 flex items-center gap-2">
-              <select
-                value={sortMode}
-                onChange={(e) => setSortMode(e.target.value as SortMode)}
-                disabled={modeEntries.length === 0}
-                className="h-9 flex-1 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700 shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
-              >
-                <option value="latest">排序: 最新</option>
-                <option value="earliest">排序: 最早</option>
-                {catalogMode === "tried" ? <option value="highest">排序: 高分</option> : null}
-                {catalogMode === "tried" ? <option value="lowest">排序: 低分</option> : null}
-              </select>
-              <button
-                type="button"
-                onClick={openQuickAddModal}
-                className="h-9 shrink-0 rounded-full bg-black px-3 text-xs font-medium text-white shadow-sm transition hover:opacity-90"
-              >
-                +加入
-              </button>
-              <select
-                value={selectedCountry}
-                onChange={(e) => setSelectedCountry(e.target.value)}
-                className="h-9 flex-1 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700 shadow-sm"
-              >
-                {availableCountries.map((country) => (
-                  <option key={country} value={country}>
-                    {country === "全部" ? "地區: 全部" : `地區: ${country}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-
           {isLoading ? (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
               正在載入圖鑑⋯⋯
@@ -901,9 +981,11 @@ export default function CatalogPage() {
                               >
                                 {localizedTitle}
                               </p>
-                              <p className="h-5 text-center text-[15px] font-bold leading-5 tracking-[-0.08em] text-amber-500">
-                                {entry.rating ? renderStars(entry.rating) : ""}
-                              </p>
+                              <div className="flex h-5 items-center justify-center">
+                                {entry.rating != null ? (
+                                  <RatingStars rating={entry.rating} sizeClass="text-[15px]" />
+                                ) : null}
+                              </div>
                             </div>
                           </button>
                         </article>
@@ -916,6 +998,89 @@ export default function CatalogPage() {
           )}
         </div>
       </main>
+
+      <div className="pointer-events-none fixed inset-x-0 z-20 flex justify-center bottom-[calc(env(safe-area-inset-bottom)+4.1rem)]">
+        <div className="pointer-events-auto flex w-[min(92vw,24rem)] items-center gap-2 rounded-full border border-gray-200 bg-white/95 p-1.5 shadow-sm backdrop-blur">
+          <button
+            type="button"
+            disabled={modeEntries.length === 0}
+            onClick={() => {
+              setIsSortPickerOpen(true);
+              setIsRegionPickerOpen(false);
+            }}
+            className="h-8 flex-1 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
+          >
+            排序: {getSortLabel(sortMode)}
+          </button>
+          <button
+            type="button"
+            onClick={openQuickAddModal}
+            className="h-8 rounded-full bg-black px-3 text-xs font-medium text-white"
+          >
+            +加入
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegionPickerOpen(true);
+              setIsSortPickerOpen(false);
+            }}
+            className="h-8 flex-1 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700"
+          >
+            地區: {selectedCountry}
+          </button>
+        </div>
+      </div>
+
+      {isSortPickerOpen ? (
+        <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setIsSortPickerOpen(false)}>
+          <div
+            className="absolute inset-x-4 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg bottom-[calc(env(safe-area-inset-bottom)+8.2rem)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {sortOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  setSortMode(option.value);
+                  setIsSortPickerOpen(false);
+                }}
+                className={`flex min-h-10 w-full items-center rounded-xl px-3 text-left text-sm ${
+                  sortMode === option.value ? "bg-black text-white" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {isRegionPickerOpen ? (
+        <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setIsRegionPickerOpen(false)}>
+          <div
+            className="absolute inset-x-4 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg bottom-[calc(env(safe-area-inset-bottom)+8.2rem)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {availableCountries.map((country) => (
+              <button
+                key={country}
+                type="button"
+                onClick={() => {
+                  setSelectedCountry(country);
+                  setIsRegionPickerOpen(false);
+                }}
+                className={`flex min-h-10 w-full items-center rounded-xl px-3 text-left text-sm ${
+                  selectedCountry === country ? "bg-black text-white" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                {country}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {isQuickAddModalOpen ? (
         <div className="fixed inset-0 z-50 bg-black/45 px-3 py-5 sm:px-6">
@@ -1085,26 +1250,28 @@ export default function CatalogPage() {
                     {quickAddSingleDraft.status === "tried" ? (
                       <div>
                         <p className="text-xs text-gray-500">評分</p>
-                        <div className="mt-1 flex items-center gap-1">
-                          {[1, 2, 3, 4, 5].map((value) => (
-                            <button
-                              key={value}
-                              type="button"
-                              onClick={() =>
-                                setQuickAddSingleDraft({
-                                  ...quickAddSingleDraft,
-                                  rating: handleToggleRating(quickAddSingleDraft.rating, value),
-                                })
-                              }
-                              className={`text-xl ${
-                                (quickAddSingleDraft.rating ?? 0) >= value
-                                  ? "text-amber-500"
-                                  : "text-gray-300 hover:text-amber-400"
-                              }`}
-                            >
-                              ★
-                            </button>
-                          ))}
+                        <div className="mt-1 flex items-center gap-2">
+                          <RatingInput
+                            value={quickAddSingleDraft.rating}
+                            onChange={(value) =>
+                              setQuickAddSingleDraft({
+                                ...quickAddSingleDraft,
+                                rating: handleToggleRating(quickAddSingleDraft.rating, value),
+                              })
+                            }
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setQuickAddSingleDraft({
+                                ...quickAddSingleDraft,
+                                rating: null,
+                              })
+                            }
+                            className="text-xs text-gray-500 underline underline-offset-2"
+                          >
+                            清除
+                          </button>
                         </div>
                       </div>
                     ) : null}
@@ -1562,21 +1729,15 @@ export default function CatalogPage() {
                     </div>
                     <div className="mt-3">
                       <p className="text-xs text-gray-400">評分</p>
-                      <div className="mt-1 flex items-center gap-1">
-                        {[1, 2, 3, 4, 5].map((value) => (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => void handleQuickRating(value)}
-                            className={`text-xl transition ${
-                              (selectedEntry.rating ?? 0) >= value
-                                ? "text-amber-500"
-                                : "text-gray-300 hover:text-amber-400"
-                            }`}
-                          >
-                            ★
-                          </button>
-                        ))}
+                      <div className="mt-1 flex items-center gap-2">
+                        <RatingInput value={selectedEntry.rating} onChange={(value) => void handleQuickRating(value)} />
+                        <button
+                          type="button"
+                          onClick={() => void handleQuickClearRating()}
+                          className="text-xs text-gray-500 underline underline-offset-2"
+                        >
+                          清除
+                        </button>
                       </div>
                     </div>
                     <div className="mt-3">
@@ -1592,12 +1753,12 @@ export default function CatalogPage() {
                   </div>
 
                   <div className="mt-4 space-y-4 rounded-2xl border border-gray-200 bg-white px-4 py-5 shadow-sm">
-                    {selectedEntry.rating ? (
+                    {selectedEntry.rating != null ? (
                       <section>
                         <p className="text-xs font-medium tracking-wide text-gray-400">評分</p>
-                        <p className="mt-1 text-base font-semibold tracking-[-0.08em] text-amber-500">
-                          {renderStars(selectedEntry.rating)}
-                        </p>
+                        <div className="mt-1">
+                          <RatingStars rating={selectedEntry.rating} sizeClass="text-lg" />
+                        </div>
                       </section>
                     ) : null}
                     {selectedEntry.tasting_note ? (

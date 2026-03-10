@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 // 設定 Vercel Serverless Function 最大執行時間為 60 秒 (Hobby 方案上限)
 export const maxDuration = 60;
 
-const PROMPT = `You are an expert in fruit packaging. Analyze this image to identify the marketed product and extract packaging information. The packaging may be from ANY country and in ANY language. Do NOT assume the fruit is Japanese or that the text is Japanese.
+const PROMPT = `You are an expert in fruit packaging. Analyze all provided images together to identify the marketed product and extract packaging information. The packaging may be from ANY country and in ANY language. Do NOT assume the fruit is Japanese or that the text is Japanese.
 
 Important: Product identification is NOT OCR-only. Use BOTH (1) visible packaging text and (2) visual packaging design cues to identify the marketed product. Do NOT infer product or variety from fruit appearance alone. Product identification must rely on packaging information—either textual or design-related.
 
@@ -76,6 +76,11 @@ type AnalyzeResult = {
   detected_text_lines: string[];
 };
 
+type InputImage = {
+  mimeType: string;
+  data: string;
+};
+
 function normalizeAnalyzeResult(raw: unknown): AnalyzeResult {
   const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const str = (value: unknown) => (typeof value === "string" ? value : "");
@@ -102,6 +107,96 @@ function normalizeAnalyzeResult(raw: unknown): AnalyzeResult {
   };
 }
 
+function parseDataUrlImage(input: string): InputImage | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
+  if (match) {
+    return {
+      mimeType: match[1],
+      data: match[2],
+    };
+  }
+
+  // Backward compatibility: plain base64 string without data URL prefix.
+  if (/^[A-Za-z0-9+/=\s]+$/.test(trimmed)) {
+    return {
+      mimeType: "image/jpeg",
+      data: trimmed.replace(/\s+/g, ""),
+    };
+  }
+  return null;
+}
+
+async function parseRequestImages(request: Request): Promise<{ images: InputImage[]; error?: string }> {
+  const contentType = request.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    let body: { images?: unknown; image?: unknown };
+    try {
+      body = (await request.json()) as { images?: unknown; image?: unknown };
+    } catch {
+      return { images: [], error: "請提供有效的 JSON 請求內容。" };
+    }
+
+    const rawImages =
+      Array.isArray(body.images) && body.images.length > 0
+        ? body.images
+        : typeof body.image === "string"
+          ? [body.image]
+          : [];
+    if (rawImages.length > 3) {
+      return { images: [], error: "圖片數量最多 3 張。" };
+    }
+
+    const parsed = rawImages
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => parseDataUrlImage(item))
+      .filter((item): item is InputImage => item !== null)
+      .slice(0, 3);
+
+    if (parsed.length === 0) {
+      return { images: [], error: "請上傳至少 1 張圖片。" };
+    }
+    return { images: parsed };
+  }
+
+  try {
+    const formData = await request.formData();
+    const fileEntries = formData.getAll("images").filter((item): item is File => item instanceof File);
+    const single = formData.get("image");
+    const files =
+      fileEntries.length > 0
+        ? fileEntries
+        : single instanceof File
+          ? [single]
+          : [];
+
+    if (files.length === 0) {
+      return { images: [], error: "請上傳圖片。" };
+    }
+    if (files.length > 3) {
+      return { images: [], error: "圖片數量最多 3 張。" };
+    }
+
+    const selected = files.slice(0, 3);
+    const parsed: InputImage[] = [];
+    for (const file of selected) {
+      if (file.size > 4 * 1024 * 1024) {
+        return { images: [], error: "圖片檔案過大，請上傳小於 4MB 的圖片。" };
+      }
+      const arrayBuffer = await file.arrayBuffer();
+      parsed.push({
+        mimeType: file.type || "image/jpeg",
+        data: Buffer.from(arrayBuffer).toString("base64"),
+      });
+    }
+    return { images: parsed };
+  } catch {
+    return { images: [], error: "讀取上傳圖片失敗。" };
+  }
+}
+
 export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -111,38 +206,13 @@ export async function POST(request: Request) {
     );
   }
 
-  let imageBuffer: Buffer;
-  let mimeType = "image/jpeg";
-
-  try {
-    const formData = await request.formData();
-    const file = formData.get("image");
-
-    if (!file || !(file instanceof File)) {
-      return NextResponse.json(
-        { error: "請上傳圖片。" },
-        { status: 400 }
-      );
-    }
-
-    if (file.size > 4 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: "圖片檔案過大，請上傳小於 4MB 的圖片。" },
-        { status: 400 }
-      );
-    }
-
-    const arrayBuffer = await file.arrayBuffer();
-    imageBuffer = Buffer.from(arrayBuffer);
-    mimeType = file.type || "image/jpeg";
-  } catch (e) {
-    return NextResponse.json(
-      { error: "讀取上傳圖片失敗。" },
-      { status: 400 }
-    );
+  const parsed = await parseRequestImages(request);
+  if (parsed.error) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-
-  const base64 = imageBuffer.toString("base64");
+  if (parsed.images.length < 1 || parsed.images.length > 3) {
+    return NextResponse.json({ error: "圖片數量需為 1 到 3 張。" }, { status: 400 });
+  }
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -156,10 +226,13 @@ export async function POST(request: Request) {
       },
     });
 
-    const result = await model.generateContent([
-      { inlineData: { mimeType, data: base64 } },
+    const parts = [
+      ...parsed.images.map((image) => ({
+        inlineData: { mimeType: image.mimeType, data: image.data },
+      })),
       { text: PROMPT },
-    ]);
+    ];
+    const result = await model.generateContent(parts);
 
     const text = result.response.text()?.trim();
     if (!text) {

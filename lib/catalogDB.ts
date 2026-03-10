@@ -12,6 +12,7 @@ export type CatalogStatus = "want" | "tried";
 export type FruitCatalogEntry = {
   id?: number;
   image_data: string;
+  images: string[];
   image_hash?: string;
   created_at: number;
   updated_at: number;
@@ -73,6 +74,24 @@ function normalizeTags(values: unknown): string[] {
     .map((value) => normalizeTag(value))
     .filter((value) => value.length > 0);
   return Array.from(new Set(normalized));
+}
+
+function normalizeImageArray(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  return values
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter((value) => value.startsWith("data:image/"))
+    .slice(0, 3);
+}
+
+export function getEntryImages(entry: Partial<Pick<FruitCatalogEntry, "images" | "image_data">>): string[] {
+  const fromImages = normalizeImageArray(entry.images);
+  if (fromImages.length > 0) return fromImages;
+  if (typeof entry.image_data === "string" && entry.image_data.startsWith("data:image/")) {
+    return [entry.image_data];
+  }
+  return [];
 }
 
 function extractOriginTags(originDisplay: string): string[] {
@@ -151,9 +170,16 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
     origin_display: str(raw.origin_display) || normalizedAnalysis.origin_display,
   });
 
+  const normalizedImages = getEntryImages({
+    images: normalizeImageArray(raw.images),
+    image_data: str(raw.image_data),
+  });
+  const coverImage = normalizedImages[0] ?? "";
+
   return {
     id: num(raw.id) ?? undefined,
-    image_data: str(raw.image_data),
+    image_data: coverImage,
+    images: normalizedImages,
     image_hash: str(raw.image_hash) || undefined,
     created_at: createdAt,
     updated_at: num(raw.updated_at) ?? createdAt,
@@ -208,7 +234,8 @@ export function createCatalogSaveDraftFromAnalysis(analysisResult: Record<string
 }
 
 export function createCatalogEntryFromAnalysis(input: {
-  image_data: string;
+  image_data?: string;
+  images?: string[];
   analysis_result: Record<string, unknown>;
   app_version: string;
   created_at?: number;
@@ -238,8 +265,15 @@ export function createCatalogEntryFromAnalysis(input: {
   });
   const timestamp = input.created_at ?? Date.now();
 
-  return {
+  const images = getEntryImages({
+    images: input.images,
     image_data: input.image_data,
+  });
+  const coverImage = images[0] ?? "";
+
+  return {
+    image_data: coverImage,
+    images,
     created_at: timestamp,
     updated_at: timestamp,
     app_version: input.app_version,

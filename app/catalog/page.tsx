@@ -7,12 +7,15 @@ import {
   catalogDB,
   createCatalogEntryFromAnalysis,
   generateDefaultTags,
+  getEntryImages,
   normalizeCatalogEntry,
   type CatalogStatus,
   type FruitCatalogEntry,
 } from "@/lib/catalogDB";
 import { toHongKongTerminology } from "@/lib/hkTerminology";
 import {
+  KNOWN_COUNTRIES,
+  classifyOriginCountry,
   normalizeCatalogCoreFields,
   normalizeCategoryForGrouping,
 } from "@/lib/normalizer";
@@ -23,7 +26,7 @@ type QuickAddMode = "single" | "batch";
 type QuickAddDraft = {
   entered_name: string;
   analysis_result: Record<string, unknown>;
-  image_data: string;
+  images: string[];
   fruit_category_display: string;
   possible_variety_display: string;
   origin_display: string;
@@ -49,6 +52,7 @@ type FullEditDraft = {
   origin_display: string;
   season_months: string;
   summary_zh_tw: string;
+  images: string[];
 };
 
 function normalizeTag(tag: string): string {
@@ -82,6 +86,11 @@ function mergeTags(base: string[], suggested: string[]): string[] {
   return Array.from(
     new Set([...base, ...suggested.map((tag) => normalizeTag(tag)).filter(Boolean)])
   ).slice(0, 6);
+}
+
+function areSameImages(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((item, index) => item === b[index]);
 }
 
 function pickFruitEmojiSeed(text: string): string {
@@ -192,6 +201,7 @@ function makeFullEditDraft(entry: FruitCatalogEntry): FullEditDraft {
     origin_display: entry.origin_display,
     season_months: entry.season_months,
     summary_zh_tw: entry.summary_zh_tw,
+    images: getEntryImages(entry),
   };
 }
 
@@ -206,7 +216,7 @@ async function createThumbnailDataUrl(file: File): Promise<string> {
   });
 
   try {
-    const maxSide = 800;
+    const maxSide = 1200;
     const quality = 0.8;
     const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
     const width = Math.max(1, Math.round(image.width * scale));
@@ -267,14 +277,12 @@ export default function CatalogPage() {
   const [entries, setEntries] = useState<FruitCatalogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<FruitCatalogEntry | null>(null);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedCountry, setSelectedCountry] = useState("全部");
   const [sortMode, setSortMode] = useState<SortMode>("latest");
   const [quickTagInput, setQuickTagInput] = useState("");
   const [quickReviewInput, setQuickReviewInput] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<FullEditDraft | null>(null);
-  const [replacementImageFile, setReplacementImageFile] = useState<File | null>(null);
-  const [replacementImagePreviewUrl, setReplacementImagePreviewUrl] = useState<string | null>(null);
   const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
   const [quickAddMode, setQuickAddMode] = useState<QuickAddMode>("single");
   const [quickAddInput, setQuickAddInput] = useState("");
@@ -309,15 +317,9 @@ export default function CatalogPage() {
   }, [selectedEntry]);
 
   useEffect(() => {
-    setSelectedTags([]);
+    setSelectedCountry("全部");
     setSortMode("latest");
   }, [catalogMode]);
-
-  useEffect(() => {
-    return () => {
-      if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
-    };
-  }, [replacementImagePreviewUrl]);
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -371,27 +373,35 @@ export default function CatalogPage() {
     };
   }, [entries]);
 
-  const allTags = useMemo(() => {
-    const unique = new Set<string>();
+  const availableCountries = useMemo(() => {
+    const present = new Set<string>();
     for (const entry of modeEntries) {
-      for (const tag of entry.tags) unique.add(tag);
+      const country = classifyOriginCountry(entry.origin_display);
+      if (country !== "其他") present.add(country);
     }
-    return Array.from(unique).sort((a, b) => a.localeCompare(b, "zh-Hant"));
+    const ordered = KNOWN_COUNTRIES.filter((country) => present.has(country));
+    return ["全部", ...ordered, "其他"];
   }, [modeEntries]);
 
-  const filteredEntries = useMemo(
+  const countryFilteredEntries = useMemo(
     () =>
       modeEntries.filter((entry) => {
-        if (selectedTags.length === 0) return true;
-        const tagSet = new Set(entry.tags);
-        return selectedTags.every((tag) => tagSet.has(tag));
+        if (selectedCountry === "全部") return true;
+        return classifyOriginCountry(entry.origin_display) === selectedCountry;
       }),
-    [modeEntries, selectedTags]
+    [modeEntries, selectedCountry]
   );
+
+  useEffect(() => {
+    if (selectedCountry === "全部") return;
+    if (!availableCountries.includes(selectedCountry)) {
+      setSelectedCountry("全部");
+    }
+  }, [availableCountries, selectedCountry]);
 
   const groupedSections = useMemo(() => {
     const groups = new Map<string, FruitCatalogEntry[]>();
-    for (const entry of filteredEntries) {
+    for (const entry of countryFilteredEntries) {
       const category = normalizeCategoryForGrouping(entry.fruit_category_display);
       const bucket = groups.get(category);
       if (bucket) {
@@ -419,7 +429,7 @@ export default function CatalogPage() {
       return a.category.localeCompare(b.category, "zh-Hant");
     });
     return sections;
-  }, [filteredEntries, sortMode]);
+  }, [countryFilteredEntries, sortMode]);
 
   const updateEntryInState = (updatedEntry: FruitCatalogEntry) => {
     setEntries((prev) => prev.map((entry) => (entry.id === updatedEntry.id ? updatedEntry : entry)));
@@ -458,9 +468,6 @@ export default function CatalogPage() {
   const resetEditArtifacts = () => {
     setIsEditing(false);
     setDraft(null);
-    setReplacementImageFile(null);
-    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
-    setReplacementImagePreviewUrl(null);
   };
 
   const handleDeleteEntry = async (entry: FruitCatalogEntry) => {
@@ -480,10 +487,6 @@ export default function CatalogPage() {
     setSelectedEntry(entry);
     resetEditArtifacts();
     setQuickTagInput("");
-  };
-
-  const handleToggleFilterTag = (tag: string) => {
-    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]));
   };
 
   const handleQuickStatusChange = async (status: CatalogStatus) => {
@@ -529,13 +532,12 @@ export default function CatalogPage() {
     if (!selectedEntry) return;
     setDraft(makeFullEditDraft(selectedEntry));
     setIsEditing(true);
-    setReplacementImageFile(null);
-    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
-    setReplacementImagePreviewUrl(null);
   };
 
   const handleSaveFullEdit = async () => {
     if (!selectedEntry || !draft || typeof selectedEntry.id !== "number") return;
+    const currentImages = getEntryImages(selectedEntry);
+    const nextImages = draft.images.slice(0, 3);
 
     const changed =
       selectedEntry.fruit_category_display !== draft.fruit_category_display ||
@@ -543,12 +545,7 @@ export default function CatalogPage() {
       selectedEntry.origin_display !== draft.origin_display ||
       selectedEntry.season_months !== draft.season_months ||
       selectedEntry.summary_zh_tw !== draft.summary_zh_tw ||
-      replacementImageFile !== null;
-
-    let nextImageData: string | undefined;
-    if (replacementImageFile) {
-      nextImageData = await createThumbnailDataUrl(replacementImageFile);
-    }
+      !areSameImages(currentImages, nextImages);
 
     await applyPartialUpdate(
       selectedEntry,
@@ -558,7 +555,8 @@ export default function CatalogPage() {
         origin_display: draft.origin_display,
         season_months: draft.season_months,
         summary_zh_tw: draft.summary_zh_tw,
-        ...(nextImageData ? { image_data: nextImageData } : {}),
+        images: nextImages,
+        image_data: nextImages[0] ?? "",
       },
       changed
     );
@@ -566,9 +564,11 @@ export default function CatalogPage() {
   };
 
   const handleDownloadImage = (entry: FruitCatalogEntry) => {
+    const cover = getEntryImages(entry)[0];
+    if (!cover) return;
     const link = document.createElement("a");
-    link.href = entry.image_data;
-    link.download = `fruit-catalog-${entry.id ?? Date.now()}.${detectImageExt(entry.image_data)}`;
+    link.href = cover;
+    link.download = `fruit-catalog-${entry.id ?? Date.now()}.${detectImageExt(cover)}`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -644,7 +644,7 @@ export default function CatalogPage() {
     return {
       entered_name: enteredName,
       analysis_result: analysisResult,
-      image_data: placeholder || createFallbackPlaceholderDataUrl(),
+      images: [placeholder || createFallbackPlaceholderDataUrl()],
       fruit_category_display: fruitCategory,
       possible_variety_display: possibleVariety,
       origin_display: originDisplay,
@@ -688,7 +688,7 @@ export default function CatalogPage() {
       summary_zh_tw: draftValue.summary_zh_tw,
     };
     const entryInput = createCatalogEntryFromAnalysis({
-      image_data: draftValue.image_data,
+      images: draftValue.images,
       analysis_result: finalAnalysis,
       app_version: version,
       overrides: {
@@ -769,7 +769,7 @@ export default function CatalogPage() {
         nextRows.push({
           entered_name: name,
           analysis_result: {},
-          image_data: createPlaceholderImageDataUrl(name, "") || createFallbackPlaceholderDataUrl(),
+          images: [createPlaceholderImageDataUrl(name, "") || createFallbackPlaceholderDataUrl()],
           fruit_category_display: "",
           possible_variety_display: name,
           origin_display: "",
@@ -819,7 +819,7 @@ export default function CatalogPage() {
       <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(env(safe-area-inset-bottom)+3rem)] pt-32 text-black sm:px-5 sm:pt-36">
         <div className="mx-auto w-full max-w-5xl">
           <div className="mb-3 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
-            <p className="text-sm font-medium text-gray-700">已收錄 {filteredEntries.length} 項</p>
+            <p className="text-sm font-medium text-gray-700">已收錄 {countryFilteredEntries.length} 項</p>
             <p className="mt-0.5 text-xs text-gray-500">
               全部 {summary.total} ・ 想試 {summary.want} ・ 圖鑑 {summary.tried}
             </p>
@@ -848,27 +848,20 @@ export default function CatalogPage() {
                 </select>
               </div>
 
-              {modeEntries.length > 0 && allTags.length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {allTags.map((tag) => {
-                    const active = selectedTags.includes(tag);
-                    return (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => handleToggleFilterTag(tag)}
-                        className={`min-h-8 rounded-full px-2.5 text-[11px] transition ${
-                          active
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        }`}
-                      >
-                        {toHongKongTerminology(tag)}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[3rem_1fr] sm:items-center">
+                <p className="text-xs text-gray-500">國家</p>
+                <select
+                  value={selectedCountry}
+                  onChange={(e) => setSelectedCountry(e.target.value)}
+                  className="min-h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700"
+                >
+                  {availableCountries.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </section>
           ) : null}
 
@@ -885,10 +878,10 @@ export default function CatalogPage() {
               <p>沒有符合條件的水果</p>
               <button
                 type="button"
-                onClick={() => setSelectedTags([])}
+                onClick={() => setSelectedCountry("全部")}
                 className="mt-2 rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600"
               >
-                試試清除篩選條件
+                重設為全部
               </button>
             </div>
           ) : (
@@ -903,6 +896,7 @@ export default function CatalogPage() {
                       const title =
                         entry.possible_variety_display || entry.fruit_category_display || "未命名水果";
                       const localizedTitle = toHongKongTerminology(title);
+                      const coverImage = getEntryImages(entry)[0] || createFallbackPlaceholderDataUrl();
                       return (
                         <article
                           key={entry.id}
@@ -915,7 +909,7 @@ export default function CatalogPage() {
                           >
                             <div className="aspect-square w-full bg-gray-100">
                               <img
-                                src={entry.image_data}
+                                src={coverImage}
                                 alt={`${title}收藏圖鑑圖片`}
                                 className="h-full w-full object-cover"
                               />
@@ -1027,7 +1021,7 @@ export default function CatalogPage() {
                     <div className="flex items-start gap-3">
                       <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white">
                         <img
-                          src={quickAddSingleDraft.image_data}
+                          src={quickAddSingleDraft.images[0] || createFallbackPlaceholderDataUrl()}
                           alt="快速建卡預覽"
                           className="h-full w-full object-cover"
                         />
@@ -1386,12 +1380,18 @@ export default function CatalogPage() {
 
             <div className="h-[calc(100dvh-4.5rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain p-4 [-webkit-overflow-scrolling:touch] sm:p-5">
               {!isEditing ? (
-                <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
-                  <img
-                    src={selectedEntry.image_data}
-                    alt="水果圖鑑詳情圖片"
-                    className="max-h-96 w-full object-cover"
-                  />
+                <div className="flex gap-2 overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 p-2">
+                  {(getEntryImages(selectedEntry).length > 0
+                    ? getEntryImages(selectedEntry)
+                    : [createFallbackPlaceholderDataUrl()]
+                  ).map((image, index) => (
+                    <img
+                      key={`${image.slice(0, 20)}-${index}`}
+                      src={image}
+                      alt={`水果圖鑑詳情圖片 ${index + 1}`}
+                      className="h-56 w-56 shrink-0 rounded-lg object-cover"
+                    />
+                  ))}
                 </div>
               ) : null}
 
@@ -1399,29 +1399,69 @@ export default function CatalogPage() {
                 <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                   <div>
                     <p className="text-sm text-gray-500">圖片</p>
-                    <div className="mt-2 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                      <img
-                        src={replacementImagePreviewUrl ?? selectedEntry.image_data}
-                        alt="編輯圖片預覽"
-                        className="max-h-64 w-full object-cover"
-                      />
+                    <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                      {draft.images.map((image, index) => (
+                        <div key={`${image.slice(0, 20)}-${index}`} className="w-28 shrink-0 space-y-1">
+                          <img src={image} alt={`編輯圖片 ${index + 1}`} className="h-28 w-28 rounded-md object-cover" />
+                          <div className="space-y-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (index === 0) return;
+                                const next = [...draft.images];
+                                const [picked] = next.splice(index, 1);
+                                next.unshift(picked);
+                                setDraft({ ...draft, images: next });
+                              }}
+                              disabled={index === 0}
+                              className="w-full rounded border border-gray-200 px-2 py-1 text-[11px] text-gray-600 disabled:bg-gray-100 disabled:text-gray-400"
+                            >
+                              {index === 0 ? "目前封面" : "設為封面"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDraft({
+                                  ...draft,
+                                  images: draft.images.filter((_, itemIndex) => itemIndex !== index),
+                                })
+                              }
+                              className="w-full rounded border border-red-200 px-2 py-1 text-[11px] text-red-600"
+                            >
+                              刪除
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <label className="mt-2 inline-flex min-h-10 cursor-pointer items-center rounded-full border border-gray-300 px-4 text-sm text-gray-700 transition hover:bg-gray-50">
-                      更改圖片
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/webp,image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          setReplacementImageFile(file);
-                          if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
-                          setReplacementImagePreviewUrl(URL.createObjectURL(file));
-                          e.currentTarget.value = "";
-                        }}
-                      />
-                    </label>
+                    {draft.images.length < 3 ? (
+                      <label className="mt-2 inline-flex min-h-10 cursor-pointer items-center rounded-full border border-gray-300 px-4 text-sm text-gray-700 transition hover:bg-gray-50">
+                        新增圖片（{draft.images.length}/3）
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp,image/*"
+                          multiple
+                          className="hidden"
+                          onChange={async (e) => {
+                            const files = Array.from(e.target.files ?? []);
+                            e.currentTarget.value = "";
+                            if (files.length === 0) return;
+                            const slots = Math.max(0, 3 - draft.images.length);
+                            if (slots === 0) return;
+                            const nextImages = [...draft.images];
+                            for (const file of files.slice(0, slots)) {
+                              try {
+                                const compressed = await createThumbnailDataUrl(file);
+                                nextImages.push(compressed);
+                              } catch {
+                                // ignore failed file and continue
+                              }
+                            }
+                            setDraft({ ...draft, images: nextImages.slice(0, 3) });
+                          }}
+                        />
+                      </label>
+                    ) : null}
                   </div>
                   <label className="block space-y-1 text-sm">
                     <span className="text-gray-500">水果類別</span>

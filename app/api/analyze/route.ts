@@ -241,14 +241,15 @@ export async function POST(request: Request) {
       );
     }
 
-    // 部分情況下模型可能會包一層 ```json 程式碼區塊，先行清理再解析
-    const cleanedText = text
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/i, "")
-      .replace(/```$/i, "")
-      .trim();
-
-    const json = JSON.parse(cleanedText);
+    let json: AnalyzeResult;
+    try {
+      json = JSON.parse(text) as AnalyzeResult;
+    } catch (parseError) {
+      // 在伺服器端紀錄原始輸出以便診斷
+      // eslint-disable-next-line no-console
+      console.error("Gemini analyze raw output:", text);
+      throw parseError;
+    }
     const normalized = normalizeAnalyzeResult(json);
     return NextResponse.json(normalized, {
       headers: { "X-Gemini-Model": GEMINI_MODEL },

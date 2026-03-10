@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { jsonrepair } from "jsonrepair";
 import { normalizeCatalogCoreFields } from "@/lib/normalizer";
 import { GEMINI_MODEL, generationConfig } from "@/lib/ai-model";
 
@@ -127,10 +128,19 @@ export async function POST(request: Request) {
     try {
       parsed = JSON.parse(text) as QuickAddAIResult;
     } catch (parseError) {
-      // 在伺服器端紀錄原始輸出以便診斷
-      // eslint-disable-next-line no-console
-      console.error("Gemini quick-add raw output:", text);
-      throw parseError;
+      // 先嘗試自動修復不完整或格式錯誤的 JSON
+      let repaired: string | null = null;
+      try {
+        repaired = jsonrepair(text);
+        // eslint-disable-next-line no-console
+        console.warn("Gemini quick-add repaired JSON:", repaired);
+        parsed = JSON.parse(repaired) as QuickAddAIResult;
+      } catch (repairError) {
+        // 修復失敗時，紀錄原始輸出以便診斷
+        // eslint-disable-next-line no-console
+        console.error("Gemini quick-add raw output (unrepairable):", text);
+        throw repairError;
+      }
     }
     const normalized = normalizeQuickAddResult(parsed);
     return NextResponse.json(

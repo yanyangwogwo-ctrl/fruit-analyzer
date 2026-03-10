@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { jsonrepair } from "jsonrepair";
 import { GEMINI_MODEL, generationConfig } from "@/lib/ai-model";
 
 // 設定 Vercel Serverless Function 最大執行時間為 60 秒 (Hobby 方案上限)
@@ -245,10 +246,19 @@ export async function POST(request: Request) {
     try {
       json = JSON.parse(text) as AnalyzeResult;
     } catch (parseError) {
-      // 在伺服器端紀錄原始輸出以便診斷
-      // eslint-disable-next-line no-console
-      console.error("Gemini analyze raw output:", text);
-      throw parseError;
+      // 先嘗試自動修復不完整或格式錯誤的 JSON
+      let repaired: string | null = null;
+      try {
+        repaired = jsonrepair(text);
+        // eslint-disable-next-line no-console
+        console.warn("Gemini analyze repaired JSON:", repaired);
+        json = JSON.parse(repaired) as AnalyzeResult;
+      } catch (repairError) {
+        // 修復失敗時，紀錄原始輸出以便診斷
+        // eslint-disable-next-line no-console
+        console.error("Gemini analyze raw output (unrepairable):", text);
+        throw repairError;
+      }
     }
     const normalized = normalizeAnalyzeResult(json);
     return NextResponse.json(normalized, {

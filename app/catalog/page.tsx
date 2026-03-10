@@ -920,7 +920,7 @@ export default function CatalogPage() {
 
   return (
     <>
-      <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(env(safe-area-inset-bottom)+8.5rem)] pt-5 text-black sm:px-5 sm:pt-6">
+      <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(180px+env(safe-area-inset-bottom))] pt-5 text-black sm:px-5 sm:pt-6">
         <div className="mx-auto w-full max-w-5xl">
           {isLoading ? (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">

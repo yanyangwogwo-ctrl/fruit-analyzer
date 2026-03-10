@@ -31,9 +31,9 @@ function renderStars(rating: number | null): string {
 
 function getCardTitleClass(title: string): string {
   const length = Array.from(title).length;
-  if (length >= 24) return "text-[10px] leading-3.5";
-  if (length >= 16) return "text-[11px] leading-4";
-  return "text-xs leading-4 sm:text-sm";
+  if (length <= 8) return "text-[13px] leading-4 sm:text-sm";
+  if (length <= 18) return "line-clamp-2 text-[11.5px] leading-4 sm:text-[12.5px]";
+  return "line-clamp-2 text-[10.5px] leading-3.5 sm:text-[11.5px]";
 }
 
 function statusLabel(status: CatalogStatus): string {
@@ -448,7 +448,7 @@ export default function CatalogPage() {
                 return (
                   <article
                     key={entry.id}
-                    className="overflow-hidden rounded-md border border-gray-300 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
+                    className="overflow-hidden rounded-none border border-gray-300 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
                   >
                     <button
                       type="button"
@@ -462,16 +462,18 @@ export default function CatalogPage() {
                           className="h-full w-full object-cover"
                         />
                       </div>
-                      <div className="space-y-1 px-1.5 py-1.5">
+                      <div className="flex flex-col items-center justify-center gap-1 px-1.5 py-1.5">
                         <p
-                          className={`line-clamp-2 h-8 break-words text-center font-semibold text-gray-900 ${getCardTitleClass(localizedTitle)}`}
+                          className={`break-words text-center font-semibold text-gray-900 ${getCardTitleClass(localizedTitle)}`}
                           title={localizedTitle}
                         >
                           {localizedTitle}
                         </p>
-                        <p className="h-3.5 text-[10px] font-medium leading-3.5 tracking-tight text-amber-500">
-                          {entry.rating ? renderStars(entry.rating) : ""}
-                        </p>
+                        {entry.rating ? (
+                          <p className="text-base font-bold leading-4 tracking-[-0.08em] text-amber-500">
+                            {renderStars(entry.rating)}
+                          </p>
+                        ) : null}
                       </div>
                     </button>
                   </article>

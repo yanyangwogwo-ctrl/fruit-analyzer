@@ -76,6 +76,13 @@ function normalizeTags(values: unknown): string[] {
   return Array.from(new Set(normalized));
 }
 
+function normalizeRating(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const rounded = Math.round(value * 2) / 2;
+  if (rounded < 0 || rounded > 5) return null;
+  return rounded;
+}
+
 function normalizeImageArray(values: unknown): string[] {
   if (!Array.isArray(values)) return [];
   return values
@@ -154,11 +161,7 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
   const createdAt = num(raw.created_at) ?? Date.now();
   const normalizedTags = normalizeTags(raw.tags);
   const status: CatalogStatus = raw.status === "tried" ? "tried" : "want";
-  const ratingRaw = num(raw.rating);
-  const rating =
-    ratingRaw !== null && Number.isInteger(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5
-      ? ratingRaw
-      : null;
+  const rating = normalizeRating(raw.rating);
 
   const normalizedCore = normalizeCatalogCoreFields({
     fruit_category_display:
@@ -251,11 +254,7 @@ export function createCatalogEntryFromAnalysis(input: {
     !!input.overrides && Object.prototype.hasOwnProperty.call(input.overrides, "tags");
   const normalizedOverrideTags = normalizeTags(input.overrides?.tags);
   const tags = hasTagsOverride ? normalizedOverrideTags : draftDefaults.tags;
-  const ratingRaw = input.overrides?.rating;
-  const rating =
-    typeof ratingRaw === "number" && Number.isInteger(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5
-      ? ratingRaw
-      : null;
+  const rating = normalizeRating(input.overrides?.rating);
   const normalizedOverrideCore = normalizeCatalogCoreFields({
     fruit_category_display: normalized.fruit_category_display,
     possible_variety_display:

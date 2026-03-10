@@ -849,7 +849,7 @@ export default function CatalogPage() {
               </div>
 
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[3rem_1fr] sm:items-center">
-                <p className="text-xs text-gray-500">國家</p>
+                <p className="text-xs text-gray-500">地區</p>
                 <select
                   value={selectedCountry}
                   onChange={(e) => setSelectedCountry(e.target.value)}

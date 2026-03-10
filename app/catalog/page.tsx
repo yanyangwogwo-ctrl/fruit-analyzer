@@ -10,7 +10,7 @@ import {
 } from "@/lib/catalogDB";
 import { toHongKongTerminology } from "@/lib/hkTerminology";
 
-type SortMode = "latest" | "earliest" | "updated";
+type SortMode = "latest" | "earliest" | "highest" | "lowest";
 
 type FullEditDraft = {
   fruit_category_display: string;
@@ -20,16 +20,24 @@ type FullEditDraft = {
   summary_zh_tw: string;
 };
 
-function formatDate(timestamp: number): string {
-  return new Intl.DateTimeFormat("zh-TW", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(timestamp));
-}
-
 function normalizeTag(tag: string): string {
   return tag.trim().replace(/^#+/, "");
+}
+
+function renderStars(rating: number | null): string {
+  const count = rating ?? 0;
+  return `${"★".repeat(count)}${"☆".repeat(Math.max(0, 5 - count))}`;
+}
+
+function statusLabel(status: CatalogStatus): string {
+  return status === "tried" ? "已試" : "想試";
+}
+
+function splitCharacteristics(value: string): string[] {
+  return value
+    .split(/\r?\n|；|;|、/)
+    .map((item) => item.trim().replace(/^[-*•●○▪▫・‧]\s*/, "").replace(/[。]+$/g, ""))
+    .filter(Boolean);
 }
 
 function makeFullEditDraft(entry: FruitCatalogEntry): FullEditDraft {
@@ -40,22 +48,6 @@ function makeFullEditDraft(entry: FruitCatalogEntry): FullEditDraft {
     season_months: entry.season_months,
     summary_zh_tw: entry.summary_zh_tw,
   };
-}
-
-function splitCharacteristics(value: string): string[] {
-  return value
-    .split(/\r?\n|；|;|、/)
-    .map((item) => item.trim().replace(/^[-*•●○▪▫・‧]\s*/, "").replace(/[。]+$/g, ""))
-    .filter(Boolean);
-}
-
-function renderStars(rating: number | null): string {
-  const count = rating ?? 0;
-  return `${"★".repeat(count)}${"☆".repeat(Math.max(0, 5 - count))}`;
-}
-
-function statusLabel(status: CatalogStatus): string {
-  return status === "tried" ? "已試" : "想試";
 }
 
 async function createThumbnailDataUrl(file: File): Promise<string> {
@@ -79,7 +71,6 @@ async function createThumbnailDataUrl(file: File): Promise<string> {
     canvas.height = height;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("縮圖失敗");
-
     context.drawImage(image, 0, 0, width, height);
     const webpData = canvas.toDataURL("image/webp", quality);
     if (webpData.startsWith("data:image/webp")) return webpData;
@@ -122,7 +113,6 @@ export default function CatalogPage() {
         setIsLoading(false);
       }
     };
-
     void loadEntries();
   }, []);
 
@@ -132,6 +122,7 @@ export default function CatalogPage() {
 
   useEffect(() => {
     setSelectedTags([]);
+    setSortMode("latest");
   }, [catalogMode]);
 
   useEffect(() => {
@@ -140,9 +131,40 @@ export default function CatalogPage() {
     };
   }, [replacementImagePreviewUrl]);
 
+  const isModalOpen = Boolean(selectedEntry);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const scrollY = window.scrollY;
+    const bodyStyle = document.body.style;
+    const htmlStyle = document.documentElement.style;
+    const prev = {
+      bodyPosition: bodyStyle.position,
+      bodyTop: bodyStyle.top,
+      bodyWidth: bodyStyle.width,
+      bodyOverflow: bodyStyle.overflow,
+      htmlOverflow: htmlStyle.overflow,
+    };
+
+    bodyStyle.position = "fixed";
+    bodyStyle.top = `-${scrollY}px`;
+    bodyStyle.width = "100%";
+    bodyStyle.overflow = "hidden";
+    htmlStyle.overflow = "hidden";
+
+    return () => {
+      bodyStyle.position = prev.bodyPosition;
+      bodyStyle.top = prev.bodyTop;
+      bodyStyle.width = prev.bodyWidth;
+      bodyStyle.overflow = prev.bodyOverflow;
+      htmlStyle.overflow = prev.htmlOverflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [isModalOpen]);
+
   const modeEntries = useMemo(
     () => entries.filter((entry) => entry.status === catalogMode),
-    [catalogMode, entries]
+    [entries, catalogMode]
   );
 
   const allTags = useMemo(() => {
@@ -168,8 +190,23 @@ export default function CatalogPage() {
     if (sortMode === "earliest") {
       return list.sort((a, b) => a.created_at - b.created_at);
     }
-    if (sortMode === "updated") {
-      return list.sort((a, b) => b.updated_at - a.updated_at);
+    if (sortMode === "highest") {
+      return list.sort((a, b) => {
+        if (a.rating == null && b.rating == null) return b.created_at - a.created_at;
+        if (a.rating == null) return 1;
+        if (b.rating == null) return -1;
+        if (b.rating !== a.rating) return b.rating - a.rating;
+        return b.created_at - a.created_at;
+      });
+    }
+    if (sortMode === "lowest") {
+      return list.sort((a, b) => {
+        if (a.rating == null && b.rating == null) return b.created_at - a.created_at;
+        if (a.rating == null) return 1;
+        if (b.rating == null) return -1;
+        if (a.rating !== b.rating) return a.rating - b.rating;
+        return b.created_at - a.created_at;
+      });
     }
     return list.sort((a, b) => b.created_at - a.created_at);
   }, [filteredEntries, sortMode]);
@@ -219,14 +256,14 @@ export default function CatalogPage() {
     setQuickReviewInput("");
   };
 
-  const handleToggleFilterTag = (tag: string) => {
-    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]));
-  };
-
   const handleOpenDetail = (entry: FruitCatalogEntry) => {
     setSelectedEntry(entry);
     resetEditArtifacts();
     setQuickTagInput("");
+  };
+
+  const handleToggleFilterTag = (tag: string) => {
+    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]));
   };
 
   const handleQuickStatusChange = async (status: CatalogStatus) => {
@@ -278,8 +315,7 @@ export default function CatalogPage() {
   };
 
   const handleSaveFullEdit = async () => {
-    if (!selectedEntry || !draft) return;
-    if (typeof selectedEntry.id !== "number") return;
+    if (!selectedEntry || !draft || typeof selectedEntry.id !== "number") return;
 
     const changed =
       selectedEntry.fruit_category_display !== draft.fruit_category_display ||
@@ -322,27 +358,25 @@ export default function CatalogPage() {
     <>
       <main className="min-h-screen bg-gray-50 px-4 pb-12 pt-32 text-black sm:px-6 sm:pt-36">
         <div className="mx-auto w-full max-w-5xl">
-          <header className="mb-4 text-left">
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">水果圖鑑</h1>
-            <p className="mt-1 text-sm text-gray-500">已收錄 {sortedEntries.length} 項</p>
-          </header>
+          <div className="mb-4 text-left">
+            <p className="text-sm text-gray-500">已收錄 {sortedEntries.length} 項</p>
+          </div>
 
           {!isLoading && modeEntries.length > 0 ? (
             <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
               <div className="flex items-center gap-2">
-                <div className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">
-                  目前檢視：{catalogMode === "want" ? "想試" : "圖鑑"}
-                </div>
                 <select
                   value={sortMode}
                   onChange={(e) => setSortMode(e.target.value as SortMode)}
-                  className="min-h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700"
+                  className="min-h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700"
                 >
                   <option value="latest">最新加入</option>
                   <option value="earliest">最早加入</option>
-                  <option value="updated">最近更新</option>
+                  {catalogMode === "tried" ? <option value="highest">最高評分</option> : null}
+                  {catalogMode === "tried" ? <option value="lowest">最低評分</option> : null}
                 </select>
               </div>
+
               {allTags.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {allTags.map((tag) => {
@@ -387,7 +421,7 @@ export default function CatalogPage() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
               {sortedEntries.map((entry) => {
                 const title = entry.possible_variety_display || entry.fruit_category_display || "未命名水果";
                 return (
@@ -428,59 +462,60 @@ export default function CatalogPage() {
       </main>
 
       {selectedEntry ? (
-        <div className="fixed inset-0 z-40 bg-black/40 px-4 py-8 sm:px-6">
-          <div className="mx-auto h-full w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-xl">
-            <div className="sticky top-0 z-10 flex justify-end gap-2 border-b border-gray-100 bg-white/95 px-5 py-3 backdrop-blur sm:px-6">
+        <div className="fixed inset-0 z-40 bg-black/45">
+          <div className="mx-auto h-[100dvh] w-full max-w-2xl overflow-hidden bg-white">
+            <div className="sticky top-0 z-20 flex justify-end gap-2 border-b border-gray-100 bg-white/95 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.25rem)] backdrop-blur">
+              <button
+                type="button"
+                aria-label="下載圖片"
+                onClick={() => handleDownloadImage(selectedEntry)}
+                className="min-h-10 min-w-10 rounded-full border border-gray-300 text-lg text-gray-700 transition hover:bg-gray-50"
+              >
+                ⬇️
+              </button>
               {!isEditing ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleStartEdit}
-                    className="min-h-10 rounded-full border border-gray-300 px-4 text-sm text-gray-700 transition hover:bg-gray-50"
-                  >
-                    編輯
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteEntry(selectedEntry)}
-                    className="min-h-10 rounded-full border border-red-200 px-4 text-sm text-red-600 transition hover:bg-red-50"
-                  >
-                    刪除
-                  </button>
-                </>
+                <button
+                  type="button"
+                  aria-label="編輯"
+                  onClick={handleStartEdit}
+                  className="min-h-10 min-w-10 rounded-full border border-gray-300 text-lg text-gray-700 transition hover:bg-gray-50"
+                >
+                  ✏️
+                </button>
               ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={resetEditArtifacts}
-                    className="min-h-10 rounded-lg px-3 text-sm text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
-                  >
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveFullEdit()}
-                    className="min-h-10 rounded-full bg-black px-4 text-sm text-white shadow-sm transition hover:opacity-90"
-                  >
-                    儲存
-                  </button>
-                </>
+                <button
+                  type="button"
+                  aria-label="儲存"
+                  onClick={() => void handleSaveFullEdit()}
+                  className="min-h-10 min-w-10 rounded-full bg-black text-lg text-white transition hover:opacity-90"
+                >
+                  💾
+                </button>
               )}
               <button
                 type="button"
+                aria-label="刪除"
+                onClick={() => void handleDeleteEntry(selectedEntry)}
+                className="min-h-10 min-w-10 rounded-full border border-red-200 text-lg text-red-600 transition hover:bg-red-50"
+              >
+                🗑️
+              </button>
+              <button
+                type="button"
+                aria-label="關閉"
                 onClick={() => {
                   setSelectedEntry(null);
                   resetEditArtifacts();
                   setQuickTagInput("");
                   setQuickReviewInput("");
                 }}
-                className="min-h-10 rounded-lg px-3 text-sm text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+                className="min-h-10 min-w-10 rounded-full border border-gray-300 text-lg text-gray-700 transition hover:bg-gray-50"
               >
-                關閉
+                ✕
               </button>
             </div>
 
-            <div className="p-5 sm:p-6">
+            <div className="h-[calc(100dvh-4.5rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain p-4 sm:p-5">
               {!isEditing ? (
                 <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
                   <img
@@ -492,7 +527,7 @@ export default function CatalogPage() {
               ) : null}
 
               {isEditing && draft ? (
-                <div className="mt-2 space-y-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                   <div>
                     <p className="text-sm text-gray-500">圖片</p>
                     <div className="mt-2 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
@@ -563,7 +598,7 @@ export default function CatalogPage() {
                 </div>
               ) : (
                 <>
-                  <div className="mt-5">
+                  <div className="mt-4">
                     <h3 className="text-xl font-semibold text-gray-900">
                       {toHongKongTerminology(
                         selectedEntry.possible_variety_display ||
@@ -574,13 +609,6 @@ export default function CatalogPage() {
                     <p className="mt-1 text-sm text-gray-500">
                       {toHongKongTerminology(selectedEntry.origin_display || "產地未標註")}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadImage(selectedEntry)}
-                      className="mt-3 min-h-10 rounded-full border border-gray-300 px-4 text-sm text-gray-700 transition hover:bg-gray-50"
-                    >
-                      下載圖片
-                    </button>
                   </div>
 
                   <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -602,7 +630,6 @@ export default function CatalogPage() {
                         ))}
                       </div>
                     </div>
-
                     <div className="mt-3">
                       <p className="text-xs text-gray-400">分類標籤</p>
                       {selectedEntry.tags.length > 0 ? (
@@ -642,7 +669,6 @@ export default function CatalogPage() {
                         </button>
                       </div>
                     </div>
-
                     <div className="mt-3">
                       <p className="text-xs text-gray-400">評分</p>
                       <div className="mt-1 flex items-center gap-1">
@@ -662,7 +688,6 @@ export default function CatalogPage() {
                         ))}
                       </div>
                     </div>
-
                     <div className="mt-3">
                       <p className="text-xs text-gray-400">用戶評價</p>
                       <textarea
@@ -675,7 +700,7 @@ export default function CatalogPage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 space-y-4 rounded-2xl border border-gray-200 bg-white px-4 py-5 shadow-sm sm:px-5">
+                  <div className="mt-4 space-y-4 rounded-2xl border border-gray-200 bg-white px-4 py-5 shadow-sm">
                     {selectedEntry.variety_characteristics ? (
                       <section>
                         <p className="text-xs font-medium tracking-wide text-gray-400">品種特點</p>
@@ -705,11 +730,6 @@ export default function CatalogPage() {
                   </div>
                 </>
               )}
-
-              <p className="mt-4 text-right text-xs text-gray-400">
-                建立於 {formatDate(selectedEntry.created_at)} · 更新於 {formatDate(selectedEntry.updated_at)} ·{" "}
-                建立版本 v{selectedEntry.app_version}
-              </p>
             </div>
           </div>
         </div>

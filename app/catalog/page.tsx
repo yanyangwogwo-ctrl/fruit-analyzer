@@ -29,6 +29,13 @@ function renderStars(rating: number | null): string {
   return count > 0 ? "★".repeat(count) : "";
 }
 
+function getCardTitleClass(title: string): string {
+  const length = Array.from(title).length;
+  if (length >= 24) return "text-[10px] leading-3.5";
+  if (length >= 16) return "text-[11px] leading-4";
+  return "text-xs leading-4 sm:text-sm";
+}
+
 function statusLabel(status: CatalogStatus): string {
   return status === "tried" ? "已試" : "想試";
 }
@@ -434,18 +441,19 @@ export default function CatalogPage() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-3 sm:gap-2 lg:grid-cols-4">
               {sortedEntries.map((entry) => {
                 const title = entry.possible_variety_display || entry.fruit_category_display || "未命名水果";
+                const localizedTitle = toHongKongTerminology(title);
                 return (
                   <article
                     key={entry.id}
-                    className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+                    className="overflow-hidden rounded-md border border-gray-300 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
                   >
                     <button
                       type="button"
                       onClick={() => handleOpenDetail(entry)}
-                      className="block w-full text-left"
+                      className="block w-full text-center"
                     >
                       <div className="aspect-square w-full bg-gray-100">
                         <img
@@ -454,11 +462,14 @@ export default function CatalogPage() {
                           className="h-full w-full object-cover"
                         />
                       </div>
-                      <div className="space-y-1 px-2 py-1.5">
-                        <p className="line-clamp-1 text-xs font-semibold text-gray-900 sm:text-sm">
-                          {toHongKongTerminology(title)}
+                      <div className="space-y-1 px-1.5 py-1.5">
+                        <p
+                          className={`line-clamp-2 h-8 break-words text-center font-semibold text-gray-900 ${getCardTitleClass(localizedTitle)}`}
+                          title={localizedTitle}
+                        >
+                          {localizedTitle}
                         </p>
-                        <p className="h-4 text-[11px] font-medium leading-4 text-amber-500">
+                        <p className="h-3.5 text-[10px] font-medium leading-3.5 tracking-tight text-amber-500">
                           {entry.rating ? renderStars(entry.rating) : ""}
                         </p>
                       </div>

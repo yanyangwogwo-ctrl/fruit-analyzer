@@ -33,6 +33,12 @@ type QuickAddDraft = {
   error?: string;
 };
 
+type CategorySection = {
+  category: string;
+  items: FruitCatalogEntry[];
+  latestActivity: number;
+};
+
 type FullEditDraft = {
   fruit_category_display: string;
   possible_variety_display: string;
@@ -215,6 +221,38 @@ function detectImageExt(dataUrl: string): string {
   return "jpg";
 }
 
+function resolveCategoryLabel(value: unknown): string {
+  if (typeof value !== "string") return "未分類";
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : "未分類";
+}
+
+function sortEntriesByMode(entries: FruitCatalogEntry[], sortMode: SortMode): FruitCatalogEntry[] {
+  const list = [...entries];
+  if (sortMode === "earliest") {
+    return list.sort((a, b) => a.created_at - b.created_at);
+  }
+  if (sortMode === "highest") {
+    return list.sort((a, b) => {
+      if (a.rating == null && b.rating == null) return b.created_at - a.created_at;
+      if (a.rating == null) return 1;
+      if (b.rating == null) return -1;
+      if (b.rating !== a.rating) return b.rating - a.rating;
+      return b.created_at - a.created_at;
+    });
+  }
+  if (sortMode === "lowest") {
+    return list.sort((a, b) => {
+      if (a.rating == null && b.rating == null) return b.created_at - a.created_at;
+      if (a.rating == null) return 1;
+      if (b.rating == null) return -1;
+      if (a.rating !== b.rating) return a.rating - b.rating;
+      return b.created_at - a.created_at;
+    });
+  }
+  return list.sort((a, b) => b.created_at - a.created_at);
+}
+
 const version = packageJson.version;
 
 export default function CatalogPage() {
@@ -346,30 +384,36 @@ export default function CatalogPage() {
     [modeEntries, selectedTags]
   );
 
-  const sortedEntries = useMemo(() => {
-    const list = [...filteredEntries];
-    if (sortMode === "earliest") {
-      return list.sort((a, b) => a.created_at - b.created_at);
+  const groupedSections = useMemo(() => {
+    const groups = new Map<string, FruitCatalogEntry[]>();
+    for (const entry of filteredEntries) {
+      const category = resolveCategoryLabel(entry.fruit_category_display);
+      const bucket = groups.get(category);
+      if (bucket) {
+        bucket.push(entry);
+      } else {
+        groups.set(category, [entry]);
+      }
     }
-    if (sortMode === "highest") {
-      return list.sort((a, b) => {
-        if (a.rating == null && b.rating == null) return b.created_at - a.created_at;
-        if (a.rating == null) return 1;
-        if (b.rating == null) return -1;
-        if (b.rating !== a.rating) return b.rating - a.rating;
-        return b.created_at - a.created_at;
+
+    const sections: CategorySection[] = [];
+    for (const [category, items] of groups.entries()) {
+      const latestActivity = items.reduce(
+        (max, item) => Math.max(max, item.updated_at || 0, item.created_at || 0),
+        0
+      );
+      sections.push({
+        category,
+        items: sortEntriesByMode(items, sortMode),
+        latestActivity,
       });
     }
-    if (sortMode === "lowest") {
-      return list.sort((a, b) => {
-        if (a.rating == null && b.rating == null) return b.created_at - a.created_at;
-        if (a.rating == null) return 1;
-        if (b.rating == null) return -1;
-        if (a.rating !== b.rating) return a.rating - b.rating;
-        return b.created_at - a.created_at;
-      });
-    }
-    return list.sort((a, b) => b.created_at - a.created_at);
+
+    sections.sort((a, b) => {
+      if (b.latestActivity !== a.latestActivity) return b.latestActivity - a.latestActivity;
+      return a.category.localeCompare(b.category, "zh-Hant");
+    });
+    return sections;
   }, [filteredEntries, sortMode]);
 
   const updateEntryInState = (updatedEntry: FruitCatalogEntry) => {
@@ -747,7 +791,7 @@ export default function CatalogPage() {
       <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(env(safe-area-inset-bottom)+3rem)] pt-32 text-black sm:px-5 sm:pt-36">
         <div className="mx-auto w-full max-w-5xl">
           <div className="mb-3 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
-            <p className="text-sm font-medium text-gray-700">已收錄 {sortedEntries.length} 項</p>
+            <p className="text-sm font-medium text-gray-700">已收錄 {filteredEntries.length} 項</p>
             <p className="mt-0.5 text-xs text-gray-500">
               全部 {summary.total} ・ 想試 {summary.want} ・ 圖鑑 {summary.tried}
             </p>
@@ -808,7 +852,7 @@ export default function CatalogPage() {
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
               {catalogMode === "want" ? "暫時未有想試水果" : "暫時未有已試水果"}
             </div>
-          ) : sortedEntries.length === 0 ? (
+          ) : groupedSections.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
               <p>沒有符合條件的水果</p>
               <button
@@ -820,44 +864,54 @@ export default function CatalogPage() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-3 sm:gap-2 lg:grid-cols-4">
-              {sortedEntries.map((entry) => {
-                const title = entry.possible_variety_display || entry.fruit_category_display || "未命名水果";
-                const localizedTitle = toHongKongTerminology(title);
-                return (
-                  <article
-                    key={entry.id}
-                    className="overflow-hidden rounded-none border border-gray-300 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleOpenDetail(entry)}
-                      className="block w-full text-center"
-                    >
-                      <div className="aspect-square w-full bg-gray-100">
-                        <img
-                          src={entry.image_data}
-                          alt={`${title}收藏圖鑑圖片`}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <div className="flex flex-col items-center justify-center gap-1 px-1.5 py-1.5">
-                        <p
-                          className={`break-words text-center font-semibold text-gray-900 ${getCardTitleClass(localizedTitle)}`}
-                          title={localizedTitle}
+            <div className="space-y-5">
+              {groupedSections.map((section) => (
+                <section key={section.category}>
+                  <h3 className="mb-2 text-sm font-semibold text-gray-700">
+                    {toHongKongTerminology(section.category)} ({section.items.length})
+                  </h3>
+                  <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-3 sm:gap-2 lg:grid-cols-4">
+                    {section.items.map((entry) => {
+                      const title =
+                        entry.possible_variety_display || entry.fruit_category_display || "未命名水果";
+                      const localizedTitle = toHongKongTerminology(title);
+                      return (
+                        <article
+                          key={entry.id}
+                          className="overflow-hidden rounded-none border border-gray-300 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
                         >
-                          {localizedTitle}
-                        </p>
-                        {entry.rating ? (
-                          <p className="text-base font-bold leading-4 tracking-[-0.08em] text-amber-500">
-                            {renderStars(entry.rating)}
-                          </p>
-                        ) : null}
-                      </div>
-                    </button>
-                  </article>
-                );
-              })}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDetail(entry)}
+                            className="block w-full text-center"
+                          >
+                            <div className="aspect-square w-full bg-gray-100">
+                              <img
+                                src={entry.image_data}
+                                alt={`${title}收藏圖鑑圖片`}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                            <div className="flex flex-col items-center justify-center gap-1 px-1.5 py-1.5">
+                              <p
+                                className={`break-words text-center font-semibold text-gray-900 ${getCardTitleClass(localizedTitle)}`}
+                                title={localizedTitle}
+                              >
+                                {localizedTitle}
+                              </p>
+                              {entry.rating ? (
+                                <p className="text-base font-bold leading-4 tracking-[-0.08em] text-amber-500">
+                                  {renderStars(entry.rating)}
+                                </p>
+                              ) : null}
+                            </div>
+                          </button>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
             </div>
           )}
         </div>

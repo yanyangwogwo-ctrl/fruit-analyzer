@@ -23,6 +23,8 @@ const statusFilterOptions: Array<{ value: "all" | CatalogStatus; label: string }
   { value: "tried", label: "已試" },
 ];
 
+type SortMode = "latest" | "earliest" | "updated";
+
 function formatDate(timestamp: number): string {
   return new Intl.DateTimeFormat("zh-TW", {
     year: "numeric",
@@ -105,6 +107,7 @@ export default function CatalogPage() {
   const [selectedEntry, setSelectedEntry] = useState<FruitCatalogEntry | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | CatalogStatus>("all");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [sortMode, setSortMode] = useState<SortMode>("latest");
   const [quickTagInput, setQuickTagInput] = useState("");
   const [quickReviewInput, setQuickReviewInput] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -156,6 +159,17 @@ export default function CatalogPage() {
       }),
     [entries, selectedTags, statusFilter]
   );
+
+  const sortedEntries = useMemo(() => {
+    const list = [...filteredEntries];
+    if (sortMode === "earliest") {
+      return list.sort((a, b) => a.created_at - b.created_at);
+    }
+    if (sortMode === "updated") {
+      return list.sort((a, b) => b.updated_at - a.updated_at);
+    }
+    return list.sort((a, b) => b.created_at - a.created_at);
+  }, [filteredEntries, sortMode]);
 
   const updateEntryInState = (updatedEntry: FruitCatalogEntry) => {
     setEntries((prev) => prev.map((entry) => (entry.id === updatedEntry.id ? updatedEntry : entry)));
@@ -307,28 +321,39 @@ export default function CatalogPage() {
         <div className="mx-auto w-full max-w-5xl">
           <header className="mb-4 text-left">
             <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">水果圖鑑</h1>
-            <p className="mt-1 text-sm text-gray-500">已收錄 {entries.length} 項</p>
+            <p className="mt-1 text-sm text-gray-500">已收錄 {sortedEntries.length} 項</p>
           </header>
 
           {!isLoading && entries.length > 0 ? (
             <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
-              <div className="rounded-full bg-gray-100 p-1">
-                <div className="grid grid-cols-3 gap-1">
-                  {statusFilterOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setStatusFilter(option.value)}
-                      className={`min-h-10 rounded-full text-sm transition ${
-                        statusFilter === option.value
-                          ? "bg-black text-white"
-                          : "text-gray-600 hover:bg-white hover:text-gray-900"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 rounded-full bg-gray-100 p-1">
+                  <div className="grid grid-cols-3 gap-1">
+                    {statusFilterOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setStatusFilter(option.value)}
+                        className={`min-h-10 rounded-full text-sm transition ${
+                          statusFilter === option.value
+                            ? "bg-black text-white"
+                            : "text-gray-600 hover:bg-white hover:text-gray-900"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+                <select
+                  value={sortMode}
+                  onChange={(e) => setSortMode(e.target.value as SortMode)}
+                  className="min-h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700"
+                >
+                  <option value="latest">最新加入</option>
+                  <option value="earliest">最早加入</option>
+                  <option value="updated">最近更新</option>
+                </select>
               </div>
               {allTags.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -363,13 +388,23 @@ export default function CatalogPage() {
               <p className="text-lg font-medium text-gray-700">你的水果圖鑑仍然是空的</p>
               <p className="mt-2 text-sm text-gray-500">先分析一個水果並加入圖鑑吧！</p>
             </div>
-          ) : filteredEntries.length === 0 ? (
+          ) : sortedEntries.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
-              目前沒有符合篩選條件的圖鑑項目。
+              <p>沒有符合條件的水果</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setSelectedTags([]);
+                }}
+                className="mt-2 rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600"
+              >
+                試試清除篩選條件
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4">
-              {filteredEntries.map((entry) => {
+              {sortedEntries.map((entry) => {
                 const title = entry.possible_variety_display || entry.fruit_category_display || "未命名水果";
                 return (
                   <article
@@ -412,8 +447,12 @@ export default function CatalogPage() {
                             <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-amber-700">
                               🟡 想試
                             </span>
-                          ) : (
+                          ) : entry.rating ? (
                             <span className="font-medium text-amber-500">{renderStars(entry.rating)}</span>
+                          ) : (
+                            <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-emerald-700">
+                              已試
+                            </span>
                           )}
                         </div>
                       </div>

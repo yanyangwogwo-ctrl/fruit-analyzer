@@ -7,16 +7,14 @@ import {
   type CatalogStatus,
   type FruitCatalogEntry,
 } from "@/lib/catalogDB";
+import { toHongKongTerminology } from "@/lib/hkTerminology";
 
 type FullEditDraft = {
   fruit_category_display: string;
   possible_variety_display: string;
   origin_display: string;
   season_months: string;
-  tags: string[];
-  tasting_note: string;
   summary_zh_tw: string;
-  notes: string;
 };
 
 const statusFilterOptions: Array<{ value: "all" | CatalogStatus; label: string }> = [
@@ -37,11 +35,30 @@ function normalizeTag(tag: string): string {
   return tag.trim().replace(/^#+/, "");
 }
 
+function makeFullEditDraft(entry: FruitCatalogEntry): FullEditDraft {
+  return {
+    fruit_category_display: entry.fruit_category_display,
+    possible_variety_display: entry.possible_variety_display,
+    origin_display: entry.origin_display,
+    season_months: entry.season_months,
+    summary_zh_tw: entry.summary_zh_tw,
+  };
+}
+
 function splitCharacteristics(value: string): string[] {
   return value
     .split(/\r?\n|；|;|、/)
     .map((item) => item.trim().replace(/^[-*•●○▪▫・‧]\s*/, "").replace(/[。]+$/g, ""))
     .filter(Boolean);
+}
+
+function renderStars(rating: number | null): string {
+  const count = rating ?? 0;
+  return `${"★".repeat(count)}${"☆".repeat(Math.max(0, 5 - count))}`;
+}
+
+function statusLabel(status: CatalogStatus): string {
+  return status === "tried" ? "已試" : "想試";
 }
 
 async function createThumbnailDataUrl(file: File): Promise<string> {
@@ -82,28 +99,6 @@ function detectImageExt(dataUrl: string): string {
   return "jpg";
 }
 
-function renderStars(rating: number | null): string {
-  const count = rating ?? 0;
-  return `${"★".repeat(count)}${"☆".repeat(Math.max(0, 5 - count))}`;
-}
-
-function statusLabel(status: CatalogStatus): string {
-  return status === "tried" ? "已試" : "想試";
-}
-
-function makeFullEditDraft(entry: FruitCatalogEntry): FullEditDraft {
-  return {
-    fruit_category_display: entry.fruit_category_display,
-    possible_variety_display: entry.possible_variety_display,
-    origin_display: entry.origin_display,
-    season_months: entry.season_months,
-    tags: [...entry.tags],
-    tasting_note: entry.tasting_note,
-    summary_zh_tw: entry.summary_zh_tw,
-    notes: entry.notes,
-  };
-}
-
 export default function CatalogPage() {
   const [entries, setEntries] = useState<FruitCatalogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -111,9 +106,9 @@ export default function CatalogPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | CatalogStatus>("all");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [quickTagInput, setQuickTagInput] = useState("");
+  const [quickReviewInput, setQuickReviewInput] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<FullEditDraft | null>(null);
-  const [editTagInput, setEditTagInput] = useState("");
   const [replacementImageFile, setReplacementImageFile] = useState<File | null>(null);
   const [replacementImagePreviewUrl, setReplacementImagePreviewUrl] = useState<string | null>(null);
 
@@ -130,6 +125,10 @@ export default function CatalogPage() {
 
     void loadEntries();
   }, []);
+
+  useEffect(() => {
+    setQuickReviewInput(selectedEntry?.tasting_note ?? "");
+  }, [selectedEntry]);
 
   useEffect(() => {
     return () => {
@@ -182,6 +181,14 @@ export default function CatalogPage() {
     updateEntryInState(updatedEntry);
   };
 
+  const resetEditArtifacts = () => {
+    setIsEditing(false);
+    setDraft(null);
+    setReplacementImageFile(null);
+    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
+    setReplacementImagePreviewUrl(null);
+  };
+
   const handleDeleteEntry = async (entry: FruitCatalogEntry) => {
     if (typeof entry.id !== "number") return;
     const confirmed = window.confirm("確定刪除此圖鑑項目？");
@@ -190,13 +197,9 @@ export default function CatalogPage() {
     await catalogDB.entries.delete(entry.id);
     setEntries((prev) => prev.filter((item) => item.id !== entry.id));
     setSelectedEntry((prev) => (prev?.id === entry.id ? null : prev));
-    setIsEditing(false);
-    setDraft(null);
+    resetEditArtifacts();
     setQuickTagInput("");
-    setEditTagInput("");
-    setReplacementImageFile(null);
-    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
-    setReplacementImagePreviewUrl(null);
+    setQuickReviewInput("");
   };
 
   const handleToggleFilterTag = (tag: string) => {
@@ -205,13 +208,8 @@ export default function CatalogPage() {
 
   const handleOpenDetail = (entry: FruitCatalogEntry) => {
     setSelectedEntry(entry);
-    setIsEditing(false);
-    setDraft(null);
+    resetEditArtifacts();
     setQuickTagInput("");
-    setEditTagInput("");
-    setReplacementImageFile(null);
-    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
-    setReplacementImagePreviewUrl(null);
   };
 
   const handleQuickStatusChange = async (status: CatalogStatus) => {
@@ -247,20 +245,16 @@ export default function CatalogPage() {
     setQuickTagInput("");
   };
 
+  const handleQuickReviewBlur = async () => {
+    if (!selectedEntry) return;
+    if (quickReviewInput === selectedEntry.tasting_note) return;
+    await applyPartialUpdate(selectedEntry, { tasting_note: quickReviewInput }, true);
+  };
+
   const handleStartEdit = () => {
     if (!selectedEntry) return;
     setDraft(makeFullEditDraft(selectedEntry));
     setIsEditing(true);
-    setEditTagInput("");
-    setReplacementImageFile(null);
-    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
-    setReplacementImagePreviewUrl(null);
-  };
-
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setDraft(null);
-    setEditTagInput("");
     setReplacementImageFile(null);
     if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
     setReplacementImagePreviewUrl(null);
@@ -276,9 +270,6 @@ export default function CatalogPage() {
       selectedEntry.origin_display !== draft.origin_display ||
       selectedEntry.season_months !== draft.season_months ||
       selectedEntry.summary_zh_tw !== draft.summary_zh_tw ||
-      selectedEntry.notes !== draft.notes ||
-      selectedEntry.tasting_note !== draft.tasting_note ||
-      selectedEntry.tags.join("|") !== draft.tags.join("|") ||
       replacementImageFile !== null;
 
     let nextImageData: string | undefined;
@@ -294,31 +285,11 @@ export default function CatalogPage() {
         origin_display: draft.origin_display,
         season_months: draft.season_months,
         summary_zh_tw: draft.summary_zh_tw,
-        notes: draft.notes,
-        tasting_note: draft.tasting_note,
-        tags: draft.tags,
         ...(nextImageData ? { image_data: nextImageData } : {}),
       },
       changed
     );
-    setIsEditing(false);
-    setDraft(null);
-    setEditTagInput("");
-    setReplacementImageFile(null);
-    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
-    setReplacementImagePreviewUrl(null);
-  };
-
-  const handleAddEditTag = () => {
-    if (!draft) return;
-    const normalized = normalizeTag(editTagInput);
-    if (!normalized) return;
-    if (draft.tags.includes(normalized)) {
-      setEditTagInput("");
-      return;
-    }
-    setDraft({ ...draft, tags: [...draft.tags, normalized] });
-    setEditTagInput("");
+    resetEditArtifacts();
   };
 
   const handleDownloadImage = (entry: FruitCatalogEntry) => {
@@ -374,7 +345,7 @@ export default function CatalogPage() {
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                         }`}
                       >
-                        #{tag}
+                        {toHongKongTerminology(tag)}
                       </button>
                     );
                   })}
@@ -418,9 +389,11 @@ export default function CatalogPage() {
                         />
                       </div>
                       <div className="space-y-1.5 px-2.5 py-2.5">
-                        <p className="line-clamp-1 text-xs font-semibold text-gray-900 sm:text-sm">{title}</p>
+                        <p className="line-clamp-1 text-xs font-semibold text-gray-900 sm:text-sm">
+                          {toHongKongTerminology(title)}
+                        </p>
                         <p className="line-clamp-1 text-[11px] text-gray-500 sm:text-xs">
-                          {entry.origin_display || "產地未標註"}
+                          {toHongKongTerminology(entry.origin_display || "產地未標註")}
                         </p>
                         {entry.tags.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
@@ -429,7 +402,7 @@ export default function CatalogPage() {
                                 key={tag}
                                 className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500"
                               >
-                                #{tag}
+                                {toHongKongTerminology(tag)}
                               </span>
                             ))}
                           </div>
@@ -440,7 +413,7 @@ export default function CatalogPage() {
                               🟡 想試
                             </span>
                           ) : (
-                            <span className="font-medium text-emerald-700">{renderStars(entry.rating)}</span>
+                            <span className="font-medium text-amber-500">{renderStars(entry.rating)}</span>
                           )}
                         </div>
                       </div>
@@ -456,88 +429,101 @@ export default function CatalogPage() {
       {selectedEntry ? (
         <div className="fixed inset-0 z-40 bg-black/40 px-4 py-8 sm:px-6">
           <div className="mx-auto h-full w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white/95 px-5 py-3 backdrop-blur sm:px-6">
-              <h2 className="text-base font-semibold text-gray-900">圖鑑詳情</h2>
-              <div className="flex items-center gap-2">
-                {isEditing ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleCancelEdit}
-                      className="min-h-10 rounded-lg px-3 text-sm text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
-                    >
-                      取消
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleSaveFullEdit()}
-                      className="min-h-10 rounded-full bg-black px-4 text-sm text-white shadow-sm transition hover:opacity-90"
-                    >
-                      儲存
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleStartEdit}
-                      className="min-h-10 rounded-full border border-gray-300 px-4 text-sm text-gray-700 transition hover:bg-gray-50"
-                    >
-                      編輯
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDeleteEntry(selectedEntry)}
-                      className="min-h-10 rounded-full border border-red-200 px-4 text-sm text-red-600 transition hover:bg-red-50"
-                    >
-                      刪除
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  onClick={() => handleDownloadImage(selectedEntry)}
-                  className="min-h-10 rounded-full border border-gray-300 px-4 text-sm text-gray-700 transition hover:bg-gray-50"
-                >
-                  下載圖片
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedEntry(null);
-                    setIsEditing(false);
-                    setDraft(null);
-                    setQuickTagInput("");
-                    setEditTagInput("");
-                    setReplacementImageFile(null);
-                    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
-                    setReplacementImagePreviewUrl(null);
-                  }}
-                  className="min-h-10 rounded-lg px-3 text-sm text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
-                >
-                  關閉
-                </button>
-              </div>
+            <div className="sticky top-0 z-10 flex justify-end gap-2 border-b border-gray-100 bg-white/95 px-5 py-3 backdrop-blur sm:px-6">
+              {!isEditing ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleStartEdit}
+                    className="min-h-10 rounded-full border border-gray-300 px-4 text-sm text-gray-700 transition hover:bg-gray-50"
+                  >
+                    編輯
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteEntry(selectedEntry)}
+                    className="min-h-10 rounded-full border border-red-200 px-4 text-sm text-red-600 transition hover:bg-red-50"
+                  >
+                    刪除
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={resetEditArtifacts}
+                    className="min-h-10 rounded-lg px-3 text-sm text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveFullEdit()}
+                    className="min-h-10 rounded-full bg-black px-4 text-sm text-white shadow-sm transition hover:opacity-90"
+                  >
+                    儲存
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedEntry(null);
+                  resetEditArtifacts();
+                  setQuickTagInput("");
+                  setQuickReviewInput("");
+                }}
+                className="min-h-10 rounded-lg px-3 text-sm text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+              >
+                關閉
+              </button>
             </div>
 
             <div className="p-5 sm:p-6">
-              <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
-                <img
-                  src={selectedEntry.image_data}
-                  alt="水果圖鑑詳情圖片"
-                  className="max-h-96 w-full object-cover"
-                />
-              </div>
+              {!isEditing ? (
+                <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                  <img
+                    src={selectedEntry.image_data}
+                    alt="水果圖鑑詳情圖片"
+                    className="max-h-96 w-full object-cover"
+                  />
+                </div>
+              ) : null}
 
               {isEditing && draft ? (
-                <div className="mt-5 space-y-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+                <div className="mt-2 space-y-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+                  <div>
+                    <p className="text-sm text-gray-500">圖片</p>
+                    <div className="mt-2 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                      <img
+                        src={replacementImagePreviewUrl ?? selectedEntry.image_data}
+                        alt="編輯圖片預覽"
+                        className="max-h-64 w-full object-cover"
+                      />
+                    </div>
+                    <label className="mt-2 inline-flex min-h-10 cursor-pointer items-center rounded-full border border-gray-300 px-4 text-sm text-gray-700 transition hover:bg-gray-50">
+                      更改圖片
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/webp,image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setReplacementImageFile(file);
+                          if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
+                          setReplacementImagePreviewUrl(URL.createObjectURL(file));
+                          e.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
+
                   <label className="block space-y-1 text-sm">
                     <span className="text-gray-500">水果類別</span>
                     <input
                       value={draft.fruit_category_display}
-                      onChange={(e) =>
-                        setDraft({ ...draft, fruit_category_display: e.target.value })
-                      }
+                      onChange={(e) => setDraft({ ...draft, fruit_category_display: e.target.value })}
                       className="min-h-10 w-full rounded-lg border border-gray-200 px-3"
                     />
                   </label>
@@ -545,9 +531,7 @@ export default function CatalogPage() {
                     <span className="text-gray-500">推定品種</span>
                     <input
                       value={draft.possible_variety_display}
-                      onChange={(e) =>
-                        setDraft({ ...draft, possible_variety_display: e.target.value })
-                      }
+                      onChange={(e) => setDraft({ ...draft, possible_variety_display: e.target.value })}
                       className="min-h-10 w-full rounded-lg border border-gray-200 px-3"
                     />
                   </label>
@@ -576,106 +560,27 @@ export default function CatalogPage() {
                       className="w-full rounded-lg border border-gray-200 px-3 py-2"
                     />
                   </label>
-                  <label className="block space-y-1 text-sm">
-                    <span className="text-gray-500">備註</span>
-                    <textarea
-                      value={draft.notes}
-                      onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-                      rows={2}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
-                    />
-                  </label>
-                  <label className="block space-y-1 text-sm">
-                    <span className="text-gray-500">用戶評價</span>
-                    <textarea
-                      value={draft.tasting_note}
-                      onChange={(e) => setDraft({ ...draft, tasting_note: e.target.value })}
-                      rows={3}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
-                    />
-                  </label>
-                  <div className="space-y-2 text-sm">
-                    <p className="text-gray-500">更換圖片</p>
-                    <label className="inline-flex min-h-10 cursor-pointer items-center rounded-full border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-50">
-                      選擇新圖片
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/webp,image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          setReplacementImageFile(file);
-                          if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
-                          setReplacementImagePreviewUrl(URL.createObjectURL(file));
-                          e.currentTarget.value = "";
-                        }}
-                      />
-                    </label>
-                    {replacementImagePreviewUrl ? (
-                      <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                        <img
-                          src={replacementImagePreviewUrl}
-                          alt="新圖片預覽"
-                          className="max-h-52 w-full object-cover"
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-sm text-gray-500">分類標籤</p>
-                    {draft.tags.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {draft.tags.map((tag) => (
-                          <button
-                            key={tag}
-                            type="button"
-                            onClick={() =>
-                              setDraft({ ...draft, tags: draft.tags.filter((item) => item !== tag) })
-                            }
-                            className="min-h-9 rounded-full bg-gray-100 px-3 text-xs text-gray-600"
-                          >
-                            #{tag} ×
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-gray-400">尚未設定標籤</p>
-                    )}
-                    <div className="flex gap-2">
-                      <input
-                        value={editTagInput}
-                        onChange={(e) => setEditTagInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key !== "Enter") return;
-                          e.preventDefault();
-                          handleAddEditTag();
-                        }}
-                        placeholder="新增標籤"
-                        className="min-h-10 flex-1 rounded-lg border border-gray-200 px-3 text-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddEditTag}
-                        className="min-h-10 rounded-full bg-black px-4 text-sm text-white"
-                      >
-                        加入
-                      </button>
-                    </div>
-                  </div>
                 </div>
               ) : (
                 <>
                   <div className="mt-5">
                     <h3 className="text-xl font-semibold text-gray-900">
-                      {selectedEntry.possible_variety_display ||
-                        selectedEntry.fruit_category_display ||
-                        "未命名水果"}
+                      {toHongKongTerminology(
+                        selectedEntry.possible_variety_display ||
+                          selectedEntry.fruit_category_display ||
+                          "未命名水果"
+                      )}
                     </h3>
                     <p className="mt-1 text-sm text-gray-500">
-                      {selectedEntry.origin_display || "產地未標註"}
+                      {toHongKongTerminology(selectedEntry.origin_display || "產地未標註")}
                     </p>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadImage(selectedEntry)}
+                      className="mt-3 min-h-10 rounded-full border border-gray-300 px-4 text-sm text-gray-700 transition hover:bg-gray-50"
+                    >
+                      下載圖片
+                    </button>
                   </div>
 
                   <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -697,6 +602,7 @@ export default function CatalogPage() {
                         ))}
                       </div>
                     </div>
+
                     <div className="mt-3">
                       <p className="text-xs text-gray-400">分類標籤</p>
                       {selectedEntry.tags.length > 0 ? (
@@ -708,7 +614,7 @@ export default function CatalogPage() {
                               onClick={() => void handleQuickRemoveTag(tag)}
                               className="min-h-9 rounded-full bg-gray-100 px-3 text-xs text-gray-600"
                             >
-                              #{tag} ×
+                              {toHongKongTerminology(tag)} ×
                             </button>
                           ))}
                         </div>
@@ -736,6 +642,7 @@ export default function CatalogPage() {
                         </button>
                       </div>
                     </div>
+
                     <div className="mt-3">
                       <p className="text-xs text-gray-400">評分</p>
                       <div className="mt-1 flex items-center gap-1">
@@ -755,37 +662,46 @@ export default function CatalogPage() {
                         ))}
                       </div>
                     </div>
+
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-400">用戶評價</p>
+                      <textarea
+                        value={quickReviewInput}
+                        onChange={(e) => setQuickReviewInput(e.target.value)}
+                        onBlur={() => void handleQuickReviewBlur()}
+                        rows={3}
+                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                      />
+                    </div>
                   </div>
 
                   <div className="mt-5 space-y-4 rounded-2xl border border-gray-200 bg-white px-4 py-5 shadow-sm sm:px-5">
+                    {selectedEntry.variety_characteristics ? (
+                      <section>
+                        <p className="text-xs font-medium tracking-wide text-gray-400">品種特點</p>
+                        <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-800">
+                          {splitCharacteristics(toHongKongTerminology(selectedEntry.variety_characteristics)).map(
+                            (item) => (
+                              <li key={item}>{item}</li>
+                            )
+                          )}
+                        </ul>
+                      </section>
+                    ) : null}
                     {selectedEntry.season_months ? (
                       <section>
                         <p className="text-xs font-medium tracking-wide text-gray-400">產季</p>
                         <p className="mt-1 text-sm leading-6 text-gray-700">{selectedEntry.season_months}</p>
                       </section>
                     ) : null}
-                    {selectedEntry.variety_characteristics ? (
-                      <section>
-                        <p className="text-xs font-medium tracking-wide text-gray-400">品種特點</p>
-                        <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-800">
-                          {splitCharacteristics(selectedEntry.variety_characteristics).map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
-                      </section>
-                    ) : null}
                     {selectedEntry.summary_zh_tw ? (
                       <section>
                         <p className="text-xs font-medium tracking-wide text-gray-400">摘要</p>
-                        <p className="mt-1 text-sm leading-6 text-gray-700">{selectedEntry.summary_zh_tw}</p>
+                        <p className="mt-1 text-sm leading-6 text-gray-700">
+                          {toHongKongTerminology(selectedEntry.summary_zh_tw)}
+                        </p>
                       </section>
                     ) : null}
-                    <section>
-                      <p className="text-xs font-medium tracking-wide text-gray-400">用戶評價</p>
-                      <p className="mt-1 text-sm leading-6 text-gray-700">
-                        {selectedEntry.tasting_note || "尚未記錄用戶評價。"}
-                      </p>
-                    </section>
                   </div>
                 </>
               )}

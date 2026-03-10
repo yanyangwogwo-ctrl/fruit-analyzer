@@ -12,6 +12,7 @@ type FullEditDraft = {
   fruit_category_display: string;
   possible_variety_display: string;
   origin_display: string;
+  season_months: string;
   tags: string[];
   tasting_note: string;
   summary_zh_tw: string;
@@ -43,6 +44,44 @@ function splitCharacteristics(value: string): string[] {
     .filter(Boolean);
 }
 
+async function createThumbnailDataUrl(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("圖片載入失敗"));
+    img.src = objectUrl;
+  });
+
+  try {
+    const maxSide = 800;
+    const quality = 0.8;
+    const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("縮圖失敗");
+
+    context.drawImage(image, 0, 0, width, height);
+    const webpData = canvas.toDataURL("image/webp", quality);
+    if (webpData.startsWith("data:image/webp")) return webpData;
+    return canvas.toDataURL("image/jpeg", quality);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function detectImageExt(dataUrl: string): string {
+  if (dataUrl.startsWith("data:image/webp")) return "webp";
+  if (dataUrl.startsWith("data:image/png")) return "png";
+  if (dataUrl.startsWith("data:image/gif")) return "gif";
+  return "jpg";
+}
+
 function renderStars(rating: number | null): string {
   const count = rating ?? 0;
   return `${"★".repeat(count)}${"☆".repeat(Math.max(0, 5 - count))}`;
@@ -57,6 +96,7 @@ function makeFullEditDraft(entry: FruitCatalogEntry): FullEditDraft {
     fruit_category_display: entry.fruit_category_display,
     possible_variety_display: entry.possible_variety_display,
     origin_display: entry.origin_display,
+    season_months: entry.season_months,
     tags: [...entry.tags],
     tasting_note: entry.tasting_note,
     summary_zh_tw: entry.summary_zh_tw,
@@ -74,6 +114,8 @@ export default function CatalogPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<FullEditDraft | null>(null);
   const [editTagInput, setEditTagInput] = useState("");
+  const [replacementImageFile, setReplacementImageFile] = useState<File | null>(null);
+  const [replacementImagePreviewUrl, setReplacementImagePreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const loadEntries = async () => {
@@ -88,6 +130,12 @@ export default function CatalogPage() {
 
     void loadEntries();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
+    };
+  }, [replacementImagePreviewUrl]);
 
   const allTags = useMemo(() => {
     const unique = new Set<string>();
@@ -146,6 +194,9 @@ export default function CatalogPage() {
     setDraft(null);
     setQuickTagInput("");
     setEditTagInput("");
+    setReplacementImageFile(null);
+    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
+    setReplacementImagePreviewUrl(null);
   };
 
   const handleToggleFilterTag = (tag: string) => {
@@ -158,6 +209,9 @@ export default function CatalogPage() {
     setDraft(null);
     setQuickTagInput("");
     setEditTagInput("");
+    setReplacementImageFile(null);
+    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
+    setReplacementImagePreviewUrl(null);
   };
 
   const handleQuickStatusChange = async (status: CatalogStatus) => {
@@ -198,12 +252,18 @@ export default function CatalogPage() {
     setDraft(makeFullEditDraft(selectedEntry));
     setIsEditing(true);
     setEditTagInput("");
+    setReplacementImageFile(null);
+    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
+    setReplacementImagePreviewUrl(null);
   };
 
   const handleCancelEdit = () => {
     setIsEditing(false);
     setDraft(null);
     setEditTagInput("");
+    setReplacementImageFile(null);
+    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
+    setReplacementImagePreviewUrl(null);
   };
 
   const handleSaveFullEdit = async () => {
@@ -214,10 +274,17 @@ export default function CatalogPage() {
       selectedEntry.fruit_category_display !== draft.fruit_category_display ||
       selectedEntry.possible_variety_display !== draft.possible_variety_display ||
       selectedEntry.origin_display !== draft.origin_display ||
+      selectedEntry.season_months !== draft.season_months ||
       selectedEntry.summary_zh_tw !== draft.summary_zh_tw ||
       selectedEntry.notes !== draft.notes ||
       selectedEntry.tasting_note !== draft.tasting_note ||
-      selectedEntry.tags.join("|") !== draft.tags.join("|");
+      selectedEntry.tags.join("|") !== draft.tags.join("|") ||
+      replacementImageFile !== null;
+
+    let nextImageData: string | undefined;
+    if (replacementImageFile) {
+      nextImageData = await createThumbnailDataUrl(replacementImageFile);
+    }
 
     await applyPartialUpdate(
       selectedEntry,
@@ -225,16 +292,21 @@ export default function CatalogPage() {
         fruit_category_display: draft.fruit_category_display,
         possible_variety_display: draft.possible_variety_display,
         origin_display: draft.origin_display,
+        season_months: draft.season_months,
         summary_zh_tw: draft.summary_zh_tw,
         notes: draft.notes,
         tasting_note: draft.tasting_note,
         tags: draft.tags,
+        ...(nextImageData ? { image_data: nextImageData } : {}),
       },
       changed
     );
     setIsEditing(false);
     setDraft(null);
     setEditTagInput("");
+    setReplacementImageFile(null);
+    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
+    setReplacementImagePreviewUrl(null);
   };
 
   const handleAddEditTag = () => {
@@ -247,6 +319,15 @@ export default function CatalogPage() {
     }
     setDraft({ ...draft, tags: [...draft.tags, normalized] });
     setEditTagInput("");
+  };
+
+  const handleDownloadImage = (entry: FruitCatalogEntry) => {
+    const link = document.createElement("a");
+    link.href = entry.image_data;
+    link.download = `fruit-catalog-${entry.id ?? Date.now()}.${detectImageExt(entry.image_data)}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   return (
@@ -415,12 +496,22 @@ export default function CatalogPage() {
                 )}
                 <button
                   type="button"
+                  onClick={() => handleDownloadImage(selectedEntry)}
+                  className="min-h-10 rounded-full border border-gray-300 px-4 text-sm text-gray-700 transition hover:bg-gray-50"
+                >
+                  下載圖片
+                </button>
+                <button
+                  type="button"
                   onClick={() => {
                     setSelectedEntry(null);
                     setIsEditing(false);
                     setDraft(null);
                     setQuickTagInput("");
                     setEditTagInput("");
+                    setReplacementImageFile(null);
+                    if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
+                    setReplacementImagePreviewUrl(null);
                   }}
                   className="min-h-10 rounded-lg px-3 text-sm text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
                 >
@@ -469,6 +560,14 @@ export default function CatalogPage() {
                     />
                   </label>
                   <label className="block space-y-1 text-sm">
+                    <span className="text-gray-500">產季</span>
+                    <input
+                      value={draft.season_months}
+                      onChange={(e) => setDraft({ ...draft, season_months: e.target.value })}
+                      className="min-h-10 w-full rounded-lg border border-gray-200 px-3"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-sm">
                     <span className="text-gray-500">摘要</span>
                     <textarea
                       value={draft.summary_zh_tw}
@@ -495,6 +594,34 @@ export default function CatalogPage() {
                       className="w-full rounded-lg border border-gray-200 px-3 py-2"
                     />
                   </label>
+                  <div className="space-y-2 text-sm">
+                    <p className="text-gray-500">更換圖片</p>
+                    <label className="inline-flex min-h-10 cursor-pointer items-center rounded-full border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-50">
+                      選擇新圖片
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/webp,image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setReplacementImageFile(file);
+                          if (replacementImagePreviewUrl) URL.revokeObjectURL(replacementImagePreviewUrl);
+                          setReplacementImagePreviewUrl(URL.createObjectURL(file));
+                          e.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+                    {replacementImagePreviewUrl ? (
+                      <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                        <img
+                          src={replacementImagePreviewUrl}
+                          alt="新圖片預覽"
+                          className="max-h-52 w-full object-cover"
+                        />
+                      </div>
+                    ) : null}
+                  </div>
 
                   <div className="space-y-2">
                     <p className="text-sm text-gray-500">分類標籤</p>
@@ -571,26 +698,6 @@ export default function CatalogPage() {
                       </div>
                     </div>
                     <div className="mt-3">
-                      <p className="text-xs text-gray-400">評分</p>
-                      <div className="mt-1 flex items-center gap-1">
-                        {[1, 2, 3, 4, 5].map((value) => (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => void handleQuickRating(value)}
-                            className={`text-xl transition ${
-                              (selectedEntry.rating ?? 0) >= value
-                                ? "text-amber-500"
-                                : "text-gray-300 hover:text-amber-400"
-                            }`}
-                          >
-                            ★
-                          </button>
-                        ))}
-                        <span className="ml-2 text-xs text-gray-500">{renderStars(selectedEntry.rating)}</span>
-                      </div>
-                    </div>
-                    <div className="mt-3">
                       <p className="text-xs text-gray-400">分類標籤</p>
                       {selectedEntry.tags.length > 0 ? (
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -629,9 +736,34 @@ export default function CatalogPage() {
                         </button>
                       </div>
                     </div>
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-400">評分</p>
+                      <div className="mt-1 flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => void handleQuickRating(value)}
+                            className={`text-xl transition ${
+                              (selectedEntry.rating ?? 0) >= value
+                                ? "text-amber-500"
+                                : "text-gray-300 hover:text-amber-400"
+                            }`}
+                          >
+                            ★
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="mt-5 space-y-4 rounded-2xl border border-gray-200 bg-white px-4 py-5 shadow-sm sm:px-5">
+                    {selectedEntry.season_months ? (
+                      <section>
+                        <p className="text-xs font-medium tracking-wide text-gray-400">產季</p>
+                        <p className="mt-1 text-sm leading-6 text-gray-700">{selectedEntry.season_months}</p>
+                      </section>
+                    ) : null}
                     {selectedEntry.variety_characteristics ? (
                       <section>
                         <p className="text-xs font-medium tracking-wide text-gray-400">品種特點</p>
@@ -646,12 +778,6 @@ export default function CatalogPage() {
                       <section>
                         <p className="text-xs font-medium tracking-wide text-gray-400">摘要</p>
                         <p className="mt-1 text-sm leading-6 text-gray-700">{selectedEntry.summary_zh_tw}</p>
-                      </section>
-                    ) : null}
-                    {selectedEntry.notes ? (
-                      <section>
-                        <p className="text-xs font-medium tracking-wide text-gray-400">備註</p>
-                        <p className="mt-1 text-sm leading-6 text-gray-700">{selectedEntry.notes}</p>
                       </section>
                     ) : null}
                     <section>

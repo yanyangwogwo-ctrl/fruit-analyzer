@@ -25,10 +25,7 @@ export type FruitProfileRow = {
 };
 
 export function normalizeAnalysisResult(data: Record<string, unknown>): AnalysisResult {
-  const normalizedInput = normalizeAnalysisRecordFields(data, {
-    categoryEmptyFallback: "",
-    categoryUnknownFallback: "",
-  });
+  const normalizedInput = normalizeAnalysisRecordFields(data);
   const str = (v: unknown) => (typeof v === "string" ? v : "");
   const arr = (v: unknown) =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];

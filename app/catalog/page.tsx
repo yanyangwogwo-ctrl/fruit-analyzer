@@ -147,18 +147,12 @@ function createQuickAddAnalysisResult(input: {
   notes: string;
   confidence_level: string;
 }): Record<string, unknown> {
-  const normalizedCore = normalizeCatalogCoreFields(
-    {
-      fruit_category_display: input.fruit_category_display,
-      possible_variety_display: input.possible_variety_display || input.entered_name,
-      possible_variety_original: input.possible_variety_original,
-      origin_display: input.origin_display,
-    },
-    {
-      categoryEmptyFallback: "其他",
-      categoryUnknownFallback: "其他",
-    }
-  );
+  const normalizedCore = normalizeCatalogCoreFields({
+    fruit_category_display: input.fruit_category_display,
+    possible_variety_display: input.possible_variety_display || input.entered_name,
+    possible_variety_original: input.possible_variety_original,
+    origin_display: input.origin_display,
+  });
 
   return {
     fruit_category_display: normalizedCore.fruit_category_display,
@@ -438,18 +432,12 @@ export default function CatalogPage() {
     markEdited: boolean
   ) => {
     if (typeof entry.id !== "number") return;
-    const normalizedCore = normalizeCatalogCoreFields(
-      {
-        fruit_category_display: partial.fruit_category_display ?? entry.fruit_category_display,
-        possible_variety_display: partial.possible_variety_display ?? entry.possible_variety_display,
-        possible_variety_original: partial.possible_variety_original ?? entry.possible_variety_original,
-        origin_display: partial.origin_display ?? entry.origin_display,
-      },
-      {
-        categoryEmptyFallback: "其他",
-        categoryUnknownFallback: "其他",
-      }
-    );
+    const normalizedCore = normalizeCatalogCoreFields({
+      fruit_category_display: partial.fruit_category_display ?? entry.fruit_category_display,
+      possible_variety_display: partial.possible_variety_display ?? entry.possible_variety_display,
+      possible_variety_original: partial.possible_variety_original ?? entry.possible_variety_original,
+      origin_display: partial.origin_display ?? entry.origin_display,
+    });
     const payload: Partial<FruitCatalogEntry> = {
       ...partial,
       fruit_category_display: normalizedCore.fruit_category_display,
@@ -618,18 +606,12 @@ export default function CatalogPage() {
     const strArr = (value: unknown) =>
       Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
-    const normalizedCore = normalizeCatalogCoreFields(
-      {
-        fruit_category_display: str(response.fruit_category_display),
-        possible_variety_display: str(response.possible_variety_display) || enteredName,
-        possible_variety_original: str(response.possible_variety_original),
-        origin_display: str(response.origin_display),
-      },
-      {
-        categoryEmptyFallback: "其他",
-        categoryUnknownFallback: "其他",
-      }
-    );
+    const normalizedCore = normalizeCatalogCoreFields({
+      fruit_category_display: str(response.fruit_category_display),
+      possible_variety_display: str(response.possible_variety_display) || enteredName,
+      possible_variety_original: str(response.possible_variety_original),
+      origin_display: str(response.origin_display),
+    });
     const fruitCategory = normalizedCore.fruit_category_display;
     const possibleVariety = normalizedCore.possible_variety_display || enteredName;
     const originDisplay = normalizedCore.origin_display;
@@ -690,18 +672,12 @@ export default function CatalogPage() {
   };
 
   const saveQuickAddDraft = async (draftValue: QuickAddDraft) => {
-    const normalizedCore = normalizeCatalogCoreFields(
-      {
-        fruit_category_display: draftValue.fruit_category_display,
-        possible_variety_display: draftValue.possible_variety_display,
-        possible_variety_original: draftValue.analysis_result.possible_variety_original,
-        origin_display: draftValue.origin_display,
-      },
-      {
-        categoryEmptyFallback: "其他",
-        categoryUnknownFallback: "其他",
-      }
-    );
+    const normalizedCore = normalizeCatalogCoreFields({
+      fruit_category_display: draftValue.fruit_category_display,
+      possible_variety_display: draftValue.possible_variety_display,
+      possible_variety_original: draftValue.analysis_result.possible_variety_original,
+      origin_display: draftValue.origin_display,
+    });
     const finalAnalysis = {
       ...draftValue.analysis_result,
       fruit_category_display: normalizedCore.fruit_category_display,

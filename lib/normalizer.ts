@@ -1,85 +1,10 @@
-type CategoryNormalizeOptions = {
-  emptyFallback?: string;
-  unknownFallback?: string;
-};
-
-type CoreFieldOptions = {
-  categoryEmptyFallback?: string;
-  categoryUnknownFallback?: string;
-};
-
-export const HK_FRUIT_CATEGORY_VOCAB = [
-  "琵琶",
-  "百香果",
-  "麒麟果",
-  "桃駁李",
-  "車厘布冧",
-  "蓬霧（天桃）",
-  "士多啤梨",
-  "藍莓",
-  "車厘子",
-  "提子",
-  "柑橘",
-  "橙",
-  "柑",
-  "車厘茄",
-  "蕃茄",
-  "柿",
-  "蘋果",
-  "梨",
-  "桃",
-  "布冧",
-  "芒果",
-  "香蕉",
-  "菠蘿",
-  "火龍果",
-  "荔枝",
-  "龍眼",
-  "榴槤",
-  "山竹",
-  "蜜瓜",
-  "西瓜",
-  "其他",
-] as const;
-
-const HK_FRUIT_CATEGORY_SET = new Set<string>(HK_FRUIT_CATEGORY_VOCAB);
+import { normalizeFruitCategory } from "@/lib/fruitCategories";
 
 const KNOWN_ORIGINAL_MAP: Record<string, string> = {
   amairin: "あまりん",
   benihoppe: "紅ほっぺ",
   "shine muscat": "シャインマスカット",
 };
-
-const CATEGORY_ALIAS_RULES: Array<{ pattern: RegExp; category: string }> = [
-  { pattern: /(士多啤梨|草莓|strawberry|white strawberry|白草莓)/i, category: "士多啤梨" },
-  { pattern: /(藍莓|blueberry)/i, category: "藍莓" },
-  { pattern: /(車厘子|櫻桃|甜櫻桃|cherry)/i, category: "車厘子" },
-  { pattern: /(提子|葡萄|grape|muscat|shine muscat)/i, category: "提子" },
-  { pattern: /(橙|橘|柑|柑橘|蜜柑|柚|西柚|葡萄柚|grapefruit|mandarin|orange|citrus)/i, category: "柑橘" },
-  { pattern: /(蘋果|apple|青蘋果|紅蘋果)/i, category: "蘋果" },
-  { pattern: /(梨|pear|asian pear)/i, category: "梨" },
-  { pattern: /(桃駁李|pluot)/i, category: "桃駁李" },
-  { pattern: /(車厘布冧)/i, category: "車厘布冧" },
-  { pattern: /(布冧|李子|李|plum|black plum)/i, category: "布冧" },
-  { pattern: /(桃|水蜜桃|peach)/i, category: "桃" },
-  { pattern: /(芒果|mango)/i, category: "芒果" },
-  { pattern: /(香蕉|banana)/i, category: "香蕉" },
-  { pattern: /(菠蘿|鳳梨|pineapple)/i, category: "菠蘿" },
-  { pattern: /(火龍果|dragon fruit|pitaya)/i, category: "火龍果" },
-  { pattern: /(荔枝|lychee)/i, category: "荔枝" },
-  { pattern: /(龍眼|longan)/i, category: "龍眼" },
-  { pattern: /(榴槤|durian)/i, category: "榴槤" },
-  { pattern: /(山竹|mangosteen)/i, category: "山竹" },
-  { pattern: /(蜜瓜|香瓜|甜瓜|哈密瓜|melon|cantaloupe)/i, category: "蜜瓜" },
-  { pattern: /(西瓜|watermelon)/i, category: "西瓜" },
-  { pattern: /(蓬霧|天桃|wax apple|rose apple)/i, category: "蓬霧（天桃）" },
-  { pattern: /(百香果|passion fruit)/i, category: "百香果" },
-  { pattern: /(琵琶|loquat)/i, category: "琵琶" },
-  { pattern: /(麒麟果|yellow dragon fruit)/i, category: "麒麟果" },
-  { pattern: /(車厘茄|cherry tomato)/i, category: "車厘茄" },
-  { pattern: /(蕃茄|番茄|tomato)/i, category: "蕃茄" },
-  { pattern: /(柿|persimmon)/i, category: "柿" },
-];
 
 const COUNTRY_RULES: Array<{ pattern: RegExp; country: string }> = [
   { pattern: /(日本|japan)/i, country: "日本" },
@@ -246,20 +171,8 @@ function normalizeCountryRegion(country: string, rawRegion: string): string {
   return region;
 }
 
-export function normalizeFruitCategoryDisplay(
-  value: unknown,
-  options: CategoryNormalizeOptions = {}
-): string {
-  const normalized = normalizeText(value);
-  const emptyFallback = options.emptyFallback ?? "";
-  const unknownFallback = options.unknownFallback ?? "";
-  if (!normalized) return emptyFallback;
-
-  for (const rule of CATEGORY_ALIAS_RULES) {
-    if (rule.pattern.test(normalized)) return rule.category;
-  }
-  if (HK_FRUIT_CATEGORY_SET.has(normalized)) return normalized;
-  return unknownFallback;
+export function normalizeFruitCategoryDisplay(value: unknown): string {
+  return normalizeFruitCategory(value);
 }
 
 export function normalizeVarietyFields(value: {
@@ -377,8 +290,7 @@ export function normalizeCatalogCoreFields(
     possible_variety_display: unknown;
     possible_variety_original: unknown;
     origin_display: unknown;
-  },
-  options: CoreFieldOptions = {}
+  }
 ): {
   fruit_category_display: string;
   possible_variety_display: string;
@@ -390,10 +302,7 @@ export function normalizeCatalogCoreFields(
     possible_variety_original: input.possible_variety_original,
   });
   return {
-    fruit_category_display: normalizeFruitCategoryDisplay(input.fruit_category_display, {
-      emptyFallback: options.categoryEmptyFallback ?? "",
-      unknownFallback: options.categoryUnknownFallback ?? "",
-    }),
+    fruit_category_display: normalizeFruitCategoryDisplay(input.fruit_category_display),
     possible_variety_display: variety.possible_variety_display,
     possible_variety_original: variety.possible_variety_original,
     origin_display: normalizeOriginDisplay(input.origin_display),
@@ -401,18 +310,14 @@ export function normalizeCatalogCoreFields(
 }
 
 export function normalizeAnalysisRecordFields(
-  input: Record<string, unknown>,
-  options: CoreFieldOptions = {}
+  input: Record<string, unknown>
 ): Record<string, unknown> {
-  const core = normalizeCatalogCoreFields(
-    {
-      fruit_category_display: input.fruit_category_display,
-      possible_variety_display: input.possible_variety_display,
-      possible_variety_original: input.possible_variety_original,
-      origin_display: input.origin_display,
-    },
-    options
-  );
+  const core = normalizeCatalogCoreFields({
+    fruit_category_display: input.fruit_category_display,
+    possible_variety_display: input.possible_variety_display,
+    possible_variety_original: input.possible_variety_original,
+    origin_display: input.origin_display,
+  });
 
   return {
     ...input,
@@ -424,9 +329,5 @@ export function normalizeAnalysisRecordFields(
 }
 
 export function normalizeCategoryForGrouping(value: unknown): string {
-  const category = normalizeFruitCategoryDisplay(value, {
-    emptyFallback: "",
-    unknownFallback: "",
-  });
-  return category || "未分類";
+  return normalizeFruitCategoryDisplay(value);
 }

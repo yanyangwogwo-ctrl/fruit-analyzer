@@ -56,18 +56,12 @@ function normalizeQuickAddResult(raw: unknown): QuickAddAIResult {
   const strArr = (value: unknown) =>
     Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
-  const normalizedCore = normalizeCatalogCoreFields(
-    {
-      fruit_category_display: str(obj.fruit_category_display),
-      possible_variety_display: str(obj.possible_variety_display),
-      possible_variety_original: str(obj.possible_variety_original),
-      origin_display: str(obj.origin_display),
-    },
-    {
-      categoryEmptyFallback: "其他",
-      categoryUnknownFallback: "其他",
-    }
-  );
+  const normalizedCore = normalizeCatalogCoreFields({
+    fruit_category_display: str(obj.fruit_category_display),
+    possible_variety_display: str(obj.possible_variety_display),
+    possible_variety_original: str(obj.possible_variety_original),
+    origin_display: str(obj.origin_display),
+  });
 
   return {
     fruit_category_display: normalizedCore.fruit_category_display,

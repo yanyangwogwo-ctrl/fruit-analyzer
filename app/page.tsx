@@ -234,10 +234,7 @@ export default function Home() {
               setRawAnalysisResult(null);
               setHasAnalyzed(true);
             } else {
-              const normalizedRecord = normalizeAnalysisRecordFields(data, {
-                categoryEmptyFallback: "其他",
-                categoryUnknownFallback: "其他",
-              });
+              const normalizedRecord = normalizeAnalysisRecordFields(data);
               setAnalysisResult(normalizeAnalysisResult(normalizedRecord));
               setRawAnalysisResult(normalizedRecord);
               setHasAnalyzed(true);

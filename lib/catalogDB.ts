@@ -112,10 +112,7 @@ export function generateDefaultTags(input: {
   origin_display: string;
 }): string[] {
   const tags: string[] = [];
-  const normalizedCategory = normalizeFruitCategoryDisplay(input.fruit_category_display, {
-    emptyFallback: "",
-    unknownFallback: "",
-  });
+  const normalizedCategory = normalizeFruitCategoryDisplay(input.fruit_category_display);
   if (normalizedCategory) {
     tags.push(normalizedCategory);
   }
@@ -132,10 +129,7 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
     raw.analysis_result && typeof raw.analysis_result === "object"
       ? (raw.analysis_result as Record<string, unknown>)
       : {};
-  const analysisResult = normalizeAnalysisRecordFields(analysisResultRaw, {
-    categoryEmptyFallback: "",
-    categoryUnknownFallback: "",
-  });
+  const analysisResult = normalizeAnalysisRecordFields(analysisResultRaw);
   const normalizedAnalysis = normalizeAnalysisResult(analysisResult);
   const analysisStr = (key: string) => str(analysisResult[key]);
   const createdAt = num(raw.created_at) ?? Date.now();
@@ -147,21 +141,15 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
       ? ratingRaw
       : null;
 
-  const normalizedCore = normalizeCatalogCoreFields(
-    {
-      fruit_category_display:
-        str(raw.fruit_category_display) || normalizedAnalysis.fruit_category_display,
-      possible_variety_display:
-        str(raw.possible_variety_display) || normalizedAnalysis.possible_variety_display,
-      possible_variety_original:
-        str(raw.possible_variety_original) || normalizedAnalysis.possible_variety_original,
-      origin_display: str(raw.origin_display) || normalizedAnalysis.origin_display,
-    },
-    {
-      categoryEmptyFallback: "",
-      categoryUnknownFallback: "",
-    }
-  );
+  const normalizedCore = normalizeCatalogCoreFields({
+    fruit_category_display:
+      str(raw.fruit_category_display) || normalizedAnalysis.fruit_category_display,
+    possible_variety_display:
+      str(raw.possible_variety_display) || normalizedAnalysis.possible_variety_display,
+    possible_variety_original:
+      str(raw.possible_variety_original) || normalizedAnalysis.possible_variety_original,
+    origin_display: str(raw.origin_display) || normalizedAnalysis.origin_display,
+  });
 
   return {
     id: num(raw.id) ?? undefined,
@@ -204,10 +192,7 @@ export type CatalogSaveDraft = {
 };
 
 export function createCatalogSaveDraftFromAnalysis(analysisResult: Record<string, unknown>): CatalogSaveDraft {
-  const normalizedRecord = normalizeAnalysisRecordFields(analysisResult, {
-    categoryEmptyFallback: "其他",
-    categoryUnknownFallback: "其他",
-  });
+  const normalizedRecord = normalizeAnalysisRecordFields(analysisResult);
   const normalized = normalizeAnalysisResult(normalizedRecord);
   return {
     possible_variety_display: normalized.possible_variety_display,
@@ -231,10 +216,7 @@ export function createCatalogEntryFromAnalysis(input: {
   is_edited?: boolean;
 }): Omit<FruitCatalogEntry, "id"> {
   const str = (value: unknown) => (typeof value === "string" ? value : "");
-  const normalizedAnalysisRecord = normalizeAnalysisRecordFields(input.analysis_result, {
-    categoryEmptyFallback: "其他",
-    categoryUnknownFallback: "其他",
-  });
+  const normalizedAnalysisRecord = normalizeAnalysisRecordFields(input.analysis_result);
   const normalized = normalizeAnalysisResult(normalizedAnalysisRecord);
   const draftDefaults = createCatalogSaveDraftFromAnalysis(normalizedAnalysisRecord);
   const status = input.overrides?.status === "tried" ? "tried" : draftDefaults.status;
@@ -247,19 +229,13 @@ export function createCatalogEntryFromAnalysis(input: {
     typeof ratingRaw === "number" && Number.isInteger(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5
       ? ratingRaw
       : null;
-  const normalizedOverrideCore = normalizeCatalogCoreFields(
-    {
-      fruit_category_display: normalized.fruit_category_display,
-      possible_variety_display:
-        input.overrides?.possible_variety_display ?? draftDefaults.possible_variety_display,
-      possible_variety_original: normalized.possible_variety_original,
-      origin_display: input.overrides?.origin_display ?? draftDefaults.origin_display,
-    },
-    {
-      categoryEmptyFallback: "其他",
-      categoryUnknownFallback: "其他",
-    }
-  );
+  const normalizedOverrideCore = normalizeCatalogCoreFields({
+    fruit_category_display: normalized.fruit_category_display,
+    possible_variety_display:
+      input.overrides?.possible_variety_display ?? draftDefaults.possible_variety_display,
+    possible_variety_original: normalized.possible_variety_original,
+    origin_display: input.overrides?.origin_display ?? draftDefaults.origin_display,
+  });
   const timestamp = input.created_at ?? Date.now();
 
   return {

@@ -1,3 +1,8 @@
+import {
+  normalizeAnalysisRecordFields,
+  normalizeVarietyDisplay,
+} from "@/lib/normalizer";
+
 export type AnalysisResult = {
   fruit_category_display: string;
   fruit_category_original: string;
@@ -20,37 +25,27 @@ export type FruitProfileRow = {
 };
 
 export function normalizeAnalysisResult(data: Record<string, unknown>): AnalysisResult {
+  const normalizedInput = normalizeAnalysisRecordFields(data, {
+    categoryEmptyFallback: "",
+    categoryUnknownFallback: "",
+  });
   const str = (v: unknown) => (typeof v === "string" ? v : "");
   const arr = (v: unknown) =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
   return {
-    fruit_category_display: str(data.fruit_category_display),
-    fruit_category_original: str(data.fruit_category_original),
-    possible_variety_display: str(data.possible_variety_display),
-    possible_variety_original: str(data.possible_variety_original),
-    variety_characteristics: str(data.variety_characteristics),
-    origin_display: str(data.origin_display),
-    brand_or_farm_display: str(data.brand_or_farm_display),
-    grade_display: str(data.grade_display),
-    season_months: str(data.season_months),
-    summary_zh_tw: str(data.summary_zh_tw),
-    notes: str(data.notes),
-    detected_text_lines: arr(data.detected_text_lines),
+    fruit_category_display: str(normalizedInput.fruit_category_display),
+    fruit_category_original: str(normalizedInput.fruit_category_original),
+    possible_variety_display: str(normalizedInput.possible_variety_display),
+    possible_variety_original: str(normalizedInput.possible_variety_original),
+    variety_characteristics: str(normalizedInput.variety_characteristics),
+    origin_display: str(normalizedInput.origin_display),
+    brand_or_farm_display: str(normalizedInput.brand_or_farm_display),
+    grade_display: str(normalizedInput.grade_display),
+    season_months: str(normalizedInput.season_months),
+    summary_zh_tw: str(normalizedInput.summary_zh_tw),
+    notes: str(normalizedInput.notes),
+    detected_text_lines: arr(normalizedInput.detected_text_lines),
   };
-}
-
-function hasCjkIdeograph(text: string): boolean {
-  return /[\u3400-\u9FFF]/.test(text);
-}
-
-function formatVarietyDisplay(display: string, original: string): string {
-  const normalizedDisplay = display.trim();
-  const normalizedOriginal = original.trim();
-  if (!normalizedDisplay) return "";
-  if (!normalizedOriginal) return normalizedDisplay;
-  return hasCjkIdeograph(normalizedDisplay)
-    ? `${normalizedDisplay}（${normalizedOriginal}）`
-    : normalizedDisplay;
 }
 
 function parseVarietyCharacteristics(text: string): string[] {
@@ -77,7 +72,7 @@ function parseVarietyCharacteristics(text: string): string[] {
 }
 
 export function buildFruitProfileRows(result: AnalysisResult): FruitProfileRow[] {
-  const formattedVarietyDisplay = formatVarietyDisplay(
+  const formattedVarietyDisplay = normalizeVarietyDisplay(
     result.possible_variety_display,
     result.possible_variety_original
   );

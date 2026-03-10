@@ -54,6 +54,10 @@ function normalizeTag(tag: string): string {
   return tag.trim().replace(/^#+/, "");
 }
 
+function handleToggleRating(current: number | null, nextValue: number): number | null {
+  return current === nextValue ? null : nextValue;
+}
+
 function hasSaveDraftChanged(
   baseline: CatalogSaveDraft | null,
   current: CatalogSaveDraft | null
@@ -390,47 +394,60 @@ export default function Home() {
               />
             </label>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-xs text-gray-500">狀態</span>
-                <select
-                  value={saveDraft.status}
-                  onChange={(e) =>
-                    setSaveDraft({
-                      ...saveDraft,
-                      status: e.target.value === "tried" ? "tried" : "want",
-                    })
-                  }
-                  className="min-h-10 w-full rounded-lg border border-gray-200 px-3 text-sm"
-                >
-                  <option value="want">想試</option>
-                  <option value="tried">已試</option>
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs text-gray-500">評分</span>
-                <select
-                  value={saveDraft.rating ?? ""}
-                  onChange={(e) =>
-                    setSaveDraft({
-                      ...saveDraft,
-                      rating: e.target.value ? Number(e.target.value) : null,
-                    })
-                  }
-                  className="min-h-10 w-full rounded-lg border border-gray-200 px-3 text-sm"
-                >
-                  <option value="">未評分</option>
-                  {[1, 2, 3, 4, 5].map((value) => (
-                    <option key={value} value={value}>
-                      {value} 分
-                    </option>
+            <div className="space-y-3">
+              <div className="rounded-full bg-gray-100 p-1">
+                <div className="grid grid-cols-2 gap-1">
+                  {(["want", "tried"] as const).map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setSaveDraft({ ...saveDraft, status })}
+                      className={`min-h-10 rounded-full text-sm transition ${
+                        saveDraft.status === status
+                          ? "bg-black text-white"
+                          : "text-gray-600 hover:bg-white hover:text-gray-900"
+                      }`}
+                    >
+                      {status === "want" ? "想試" : "已試"}
+                    </button>
                   ))}
-                </select>
-              </label>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">評分</p>
+                <div className="mt-1 flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() =>
+                        setSaveDraft({
+                          ...saveDraft,
+                          rating: handleToggleRating(saveDraft.rating, value),
+                        })
+                      }
+                      className={`text-2xl leading-none transition ${
+                        (saveDraft.rating ?? 0) >= value
+                          ? "text-amber-500"
+                          : "text-gray-300 hover:text-amber-400"
+                      }`}
+                    >
+                      ★
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setSaveDraft({ ...saveDraft, rating: null })}
+                    className="ml-2 text-xs text-gray-500 underline underline-offset-2"
+                  >
+                    清除
+                  </button>
+                </div>
+              </div>
             </div>
 
             <label className="block space-y-1">
-              <span className="text-xs text-gray-500">品飲筆記</span>
+              <span className="text-xs text-gray-500">用戶評價</span>
               <textarea
                 value={saveDraft.tasting_note}
                 onChange={(e) => setSaveDraft({ ...saveDraft, tasting_note: e.target.value })}
@@ -440,7 +457,7 @@ export default function Home() {
             </label>
 
             <div className="space-y-2">
-              <span className="text-xs text-gray-500">標籤</span>
+              <span className="text-xs text-gray-500">分類標籤</span>
               {saveDraft.tags.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {saveDraft.tags.map((tag) => (

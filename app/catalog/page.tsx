@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   catalogDB,
   normalizeCatalogEntry,
@@ -8,12 +8,21 @@ import {
   type FruitCatalogEntry,
 } from "@/lib/catalogDB";
 
-type CatalogEditDraft = {
-  status: CatalogStatus;
-  rating: number | null;
-  tasting_note: string;
+type FullEditDraft = {
+  fruit_category_display: string;
+  possible_variety_display: string;
+  origin_display: string;
   tags: string[];
+  tasting_note: string;
+  summary_zh_tw: string;
+  notes: string;
 };
+
+const statusFilterOptions: Array<{ value: "all" | CatalogStatus; label: string }> = [
+  { value: "all", label: "全部" },
+  { value: "want", label: "想試" },
+  { value: "tried", label: "已試" },
+];
 
 function formatDate(timestamp: number): string {
   return new Intl.DateTimeFormat("zh-TW", {
@@ -27,33 +36,6 @@ function normalizeTag(tag: string): string {
   return tag.trim().replace(/^#+/, "");
 }
 
-function createEditDraft(entry: FruitCatalogEntry): CatalogEditDraft {
-  return {
-    status: entry.status,
-    rating: entry.rating,
-    tasting_note: entry.tasting_note,
-    tags: [...entry.tags],
-  };
-}
-
-function hasDraftChanged(entry: FruitCatalogEntry, draft: CatalogEditDraft): boolean {
-  return (
-    entry.status !== draft.status ||
-    entry.rating !== draft.rating ||
-    entry.tasting_note !== draft.tasting_note ||
-    entry.tags.join("|") !== draft.tags.join("|")
-  );
-}
-
-function statusLabel(status: CatalogStatus): string {
-  return status === "tried" ? "已試" : "想試";
-}
-
-function renderStars(rating: number | null): string {
-  const count = rating ?? 0;
-  return `${"★".repeat(count)}${"☆".repeat(Math.max(0, 5 - count))}`;
-}
-
 function splitCharacteristics(value: string): string[] {
   return value
     .split(/\r?\n|；|;|、/)
@@ -61,13 +43,37 @@ function splitCharacteristics(value: string): string[] {
     .filter(Boolean);
 }
 
+function renderStars(rating: number | null): string {
+  const count = rating ?? 0;
+  return `${"★".repeat(count)}${"☆".repeat(Math.max(0, 5 - count))}`;
+}
+
+function statusLabel(status: CatalogStatus): string {
+  return status === "tried" ? "已試" : "想試";
+}
+
+function makeFullEditDraft(entry: FruitCatalogEntry): FullEditDraft {
+  return {
+    fruit_category_display: entry.fruit_category_display,
+    possible_variety_display: entry.possible_variety_display,
+    origin_display: entry.origin_display,
+    tags: [...entry.tags],
+    tasting_note: entry.tasting_note,
+    summary_zh_tw: entry.summary_zh_tw,
+    notes: entry.notes,
+  };
+}
+
 export default function CatalogPage() {
   const [entries, setEntries] = useState<FruitCatalogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<FruitCatalogEntry | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | CatalogStatus>("all");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [quickTagInput, setQuickTagInput] = useState("");
   const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState<CatalogEditDraft | null>(null);
-  const [newTagInput, setNewTagInput] = useState("");
+  const [draft, setDraft] = useState<FullEditDraft | null>(null);
+  const [editTagInput, setEditTagInput] = useState("");
 
   useEffect(() => {
     const loadEntries = async () => {
@@ -83,92 +89,218 @@ export default function CatalogPage() {
     void loadEntries();
   }, []);
 
-  const handleDeleteEntry = async (id: number | undefined, fromModal = false) => {
-    if (typeof id !== "number") return;
+  const allTags = useMemo(() => {
+    const unique = new Set<string>();
+    for (const entry of entries) {
+      for (const tag of entry.tags) unique.add(tag);
+    }
+    return Array.from(unique).sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  }, [entries]);
+
+  const filteredEntries = useMemo(
+    () =>
+      entries.filter((entry) => {
+        if (statusFilter !== "all" && entry.status !== statusFilter) return false;
+        if (selectedTags.length > 0) {
+          const tagSet = new Set(entry.tags);
+          return selectedTags.every((tag) => tagSet.has(tag));
+        }
+        return true;
+      }),
+    [entries, selectedTags, statusFilter]
+  );
+
+  const updateEntryInState = (updatedEntry: FruitCatalogEntry) => {
+    setEntries((prev) => prev.map((entry) => (entry.id === updatedEntry.id ? updatedEntry : entry)));
+    setSelectedEntry((prev) => (prev?.id === updatedEntry.id ? updatedEntry : prev));
+  };
+
+  const applyPartialUpdate = async (
+    entry: FruitCatalogEntry,
+    partial: Partial<FruitCatalogEntry>,
+    markEdited: boolean
+  ) => {
+    if (typeof entry.id !== "number") return;
+    const payload: Partial<FruitCatalogEntry> = {
+      ...partial,
+      updated_at: Date.now(),
+      is_edited: markEdited ? true : entry.is_edited,
+    };
+    await catalogDB.entries.update(entry.id, payload);
+    const updatedEntry = normalizeCatalogEntry({
+      ...entry,
+      ...payload,
+    } as Record<string, unknown>);
+    updateEntryInState(updatedEntry);
+  };
+
+  const handleDeleteEntry = async (entry: FruitCatalogEntry) => {
+    if (typeof entry.id !== "number") return;
     const confirmed = window.confirm("確定刪除此圖鑑項目？");
     if (!confirmed) return;
 
-    await catalogDB.entries.delete(id);
-    setEntries((prev) => prev.filter((entry) => entry.id !== id));
-    if (fromModal) {
-      setSelectedEntry(null);
-    } else {
-      setSelectedEntry((prev) => (prev?.id === id ? null : prev));
-    }
+    await catalogDB.entries.delete(entry.id);
+    setEntries((prev) => prev.filter((item) => item.id !== entry.id));
+    setSelectedEntry((prev) => (prev?.id === entry.id ? null : prev));
     setIsEditing(false);
     setDraft(null);
-    setNewTagInput("");
+    setQuickTagInput("");
+    setEditTagInput("");
+  };
+
+  const handleToggleFilterTag = (tag: string) => {
+    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]));
   };
 
   const handleOpenDetail = (entry: FruitCatalogEntry) => {
     setSelectedEntry(entry);
     setIsEditing(false);
     setDraft(null);
-    setNewTagInput("");
+    setQuickTagInput("");
+    setEditTagInput("");
+  };
+
+  const handleQuickStatusChange = async (status: CatalogStatus) => {
+    if (!selectedEntry) return;
+    if (selectedEntry.status === status) return;
+    await applyPartialUpdate(selectedEntry, { status }, true);
+  };
+
+  const handleQuickRating = async (value: number) => {
+    if (!selectedEntry) return;
+    const next = selectedEntry.rating === value ? null : value;
+    await applyPartialUpdate(selectedEntry, { rating: next }, true);
+  };
+
+  const handleQuickRemoveTag = async (tag: string) => {
+    if (!selectedEntry) return;
+    await applyPartialUpdate(
+      selectedEntry,
+      { tags: selectedEntry.tags.filter((item) => item !== tag) },
+      true
+    );
+  };
+
+  const handleQuickAddTag = async () => {
+    if (!selectedEntry) return;
+    const normalized = normalizeTag(quickTagInput);
+    if (!normalized) return;
+    if (selectedEntry.tags.includes(normalized)) {
+      setQuickTagInput("");
+      return;
+    }
+    await applyPartialUpdate(selectedEntry, { tags: [...selectedEntry.tags, normalized] }, true);
+    setQuickTagInput("");
   };
 
   const handleStartEdit = () => {
     if (!selectedEntry) return;
-    setDraft(createEditDraft(selectedEntry));
-    setNewTagInput("");
+    setDraft(makeFullEditDraft(selectedEntry));
     setIsEditing(true);
+    setEditTagInput("");
   };
 
   const handleCancelEdit = () => {
     setIsEditing(false);
     setDraft(null);
-    setNewTagInput("");
+    setEditTagInput("");
   };
 
-  const handleSaveEdit = async () => {
-    if (!selectedEntry || !draft || typeof selectedEntry.id !== "number") return;
+  const handleSaveFullEdit = async () => {
+    if (!selectedEntry || !draft) return;
+    if (typeof selectedEntry.id !== "number") return;
 
-    const changed = hasDraftChanged(selectedEntry, draft);
-    const payload: Partial<FruitCatalogEntry> = {
-      ...draft,
-      updated_at: Date.now(),
-      is_edited: selectedEntry.is_edited || changed,
-    };
-    await catalogDB.entries.update(selectedEntry.id, payload);
+    const changed =
+      selectedEntry.fruit_category_display !== draft.fruit_category_display ||
+      selectedEntry.possible_variety_display !== draft.possible_variety_display ||
+      selectedEntry.origin_display !== draft.origin_display ||
+      selectedEntry.summary_zh_tw !== draft.summary_zh_tw ||
+      selectedEntry.notes !== draft.notes ||
+      selectedEntry.tasting_note !== draft.tasting_note ||
+      selectedEntry.tags.join("|") !== draft.tags.join("|");
 
-    const updatedEntry = normalizeCatalogEntry({
-      ...selectedEntry,
-      ...payload,
-    } as Record<string, unknown>);
-    setEntries((prev) => prev.map((entry) => (entry.id === updatedEntry.id ? updatedEntry : entry)));
-    setSelectedEntry(updatedEntry);
+    await applyPartialUpdate(
+      selectedEntry,
+      {
+        fruit_category_display: draft.fruit_category_display,
+        possible_variety_display: draft.possible_variety_display,
+        origin_display: draft.origin_display,
+        summary_zh_tw: draft.summary_zh_tw,
+        notes: draft.notes,
+        tasting_note: draft.tasting_note,
+        tags: draft.tags,
+      },
+      changed
+    );
     setIsEditing(false);
     setDraft(null);
-    setNewTagInput("");
+    setEditTagInput("");
   };
 
-  const handleAddDraftTag = () => {
+  const handleAddEditTag = () => {
     if (!draft) return;
-    const normalized = normalizeTag(newTagInput);
+    const normalized = normalizeTag(editTagInput);
     if (!normalized) return;
     if (draft.tags.includes(normalized)) {
-      setNewTagInput("");
+      setEditTagInput("");
       return;
     }
     setDraft({ ...draft, tags: [...draft.tags, normalized] });
-    setNewTagInput("");
-  };
-
-  const handleRemoveDraftTag = (tag: string) => {
-    if (!draft) return;
-    setDraft({ ...draft, tags: draft.tags.filter((item) => item !== tag) });
+    setEditTagInput("");
   };
 
   return (
     <>
       <main className="min-h-screen bg-gray-50 px-4 pb-12 pt-32 text-black sm:px-6 sm:pt-36">
         <div className="mx-auto w-full max-w-5xl">
-          <header className="mb-5 text-left">
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
-              水果圖鑑
-            </h1>
+          <header className="mb-4 text-left">
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">水果圖鑑</h1>
             <p className="mt-1 text-sm text-gray-500">已收錄 {entries.length} 項</p>
           </header>
+
+          {!isLoading && entries.length > 0 ? (
+            <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+              <div className="rounded-full bg-gray-100 p-1">
+                <div className="grid grid-cols-3 gap-1">
+                  {statusFilterOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setStatusFilter(option.value)}
+                      className={`min-h-10 rounded-full text-sm transition ${
+                        statusFilter === option.value
+                          ? "bg-black text-white"
+                          : "text-gray-600 hover:bg-white hover:text-gray-900"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {allTags.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {allTags.map((tag) => {
+                    const active = selectedTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => handleToggleFilterTag(tag)}
+                        className={`min-h-9 rounded-full px-3 text-xs transition ${
+                          active
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        }`}
+                      >
+                        #{tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
           {isLoading ? (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
@@ -179,9 +311,13 @@ export default function CatalogPage() {
               <p className="text-lg font-medium text-gray-700">你的水果圖鑑仍然是空的</p>
               <p className="mt-2 text-sm text-gray-500">先分析一個水果並加入圖鑑吧！</p>
             </div>
+          ) : filteredEntries.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
+              目前沒有符合篩選條件的圖鑑項目。
+            </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-              {entries.map((entry) => {
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4">
+              {filteredEntries.map((entry) => {
                 const title = entry.possible_variety_display || entry.fruit_category_display || "未命名水果";
                 return (
                   <article
@@ -200,28 +336,26 @@ export default function CatalogPage() {
                           className="h-full w-full object-cover"
                         />
                       </div>
-                      <div className="space-y-2 px-3 py-3">
-                        <p className="line-clamp-1 text-sm font-semibold text-gray-900 sm:text-base">
-                          {title}
-                        </p>
-                        <p className="line-clamp-1 text-xs text-gray-500 sm:text-sm">
+                      <div className="space-y-1.5 px-2.5 py-2.5">
+                        <p className="line-clamp-1 text-xs font-semibold text-gray-900 sm:text-sm">{title}</p>
+                        <p className="line-clamp-1 text-[11px] text-gray-500 sm:text-xs">
                           {entry.origin_display || "產地未標註"}
                         </p>
                         {entry.tags.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
-                            {entry.tags.slice(0, 3).map((tag) => (
+                            {entry.tags.slice(0, 2).map((tag) => (
                               <span
                                 key={tag}
-                                className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500"
+                                className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500"
                               >
                                 #{tag}
                               </span>
                             ))}
                           </div>
                         ) : null}
-                        <div className="pt-0.5 text-xs text-gray-600">
+                        <div className="text-[11px] text-gray-600">
                           {entry.status === "want" ? (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">
+                            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-amber-700">
                               🟡 想試
                             </span>
                           ) : (
@@ -255,7 +389,7 @@ export default function CatalogPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => void handleSaveEdit()}
+                      onClick={() => void handleSaveFullEdit()}
                       className="min-h-10 rounded-full bg-black px-4 text-sm text-white shadow-sm transition hover:opacity-90"
                     >
                       儲存
@@ -272,7 +406,7 @@ export default function CatalogPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => void handleDeleteEntry(selectedEntry.id, true)}
+                      onClick={() => void handleDeleteEntry(selectedEntry)}
                       className="min-h-10 rounded-full border border-red-200 px-4 text-sm text-red-600 transition hover:bg-red-50"
                     >
                       刪除
@@ -285,6 +419,8 @@ export default function CatalogPage() {
                     setSelectedEntry(null);
                     setIsEditing(false);
                     setDraft(null);
+                    setQuickTagInput("");
+                    setEditTagInput("");
                   }}
                   className="min-h-10 rounded-lg px-3 text-sm text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
                 >
@@ -298,64 +434,80 @@ export default function CatalogPage() {
                 <img
                   src={selectedEntry.image_data}
                   alt="水果圖鑑詳情圖片"
-                  className="max-h-80 w-full object-cover"
+                  className="max-h-96 w-full object-cover"
                 />
               </div>
 
               {isEditing && draft ? (
                 <div className="mt-5 space-y-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="space-y-1 text-sm">
-                      <span className="text-gray-500">狀態</span>
-                      <select
-                        value={draft.status}
-                        onChange={(e) => setDraft({ ...draft, status: e.target.value as CatalogStatus })}
-                        className="min-h-10 w-full rounded-lg border border-gray-200 px-3 text-sm"
-                      >
-                        <option value="want">想試</option>
-                        <option value="tried">已試</option>
-                      </select>
-                    </label>
-                    <label className="space-y-1 text-sm">
-                      <span className="text-gray-500">評分</span>
-                      <select
-                        value={draft.rating ?? ""}
-                        onChange={(e) =>
-                          setDraft({
-                            ...draft,
-                            rating: e.target.value ? Number(e.target.value) : null,
-                          })
-                        }
-                        className="min-h-10 w-full rounded-lg border border-gray-200 px-3 text-sm"
-                      >
-                        <option value="">未評分</option>
-                        {[1, 2, 3, 4, 5].map((value) => (
-                          <option key={value} value={value}>
-                            {value} 分
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
                   <label className="block space-y-1 text-sm">
-                    <span className="text-gray-500">品飲筆記</span>
+                    <span className="text-gray-500">水果類別</span>
+                    <input
+                      value={draft.fruit_category_display}
+                      onChange={(e) =>
+                        setDraft({ ...draft, fruit_category_display: e.target.value })
+                      }
+                      className="min-h-10 w-full rounded-lg border border-gray-200 px-3"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-sm">
+                    <span className="text-gray-500">推定品種</span>
+                    <input
+                      value={draft.possible_variety_display}
+                      onChange={(e) =>
+                        setDraft({ ...draft, possible_variety_display: e.target.value })
+                      }
+                      className="min-h-10 w-full rounded-lg border border-gray-200 px-3"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-sm">
+                    <span className="text-gray-500">產地</span>
+                    <input
+                      value={draft.origin_display}
+                      onChange={(e) => setDraft({ ...draft, origin_display: e.target.value })}
+                      className="min-h-10 w-full rounded-lg border border-gray-200 px-3"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-sm">
+                    <span className="text-gray-500">摘要</span>
+                    <textarea
+                      value={draft.summary_zh_tw}
+                      onChange={(e) => setDraft({ ...draft, summary_zh_tw: e.target.value })}
+                      rows={3}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-sm">
+                    <span className="text-gray-500">備註</span>
+                    <textarea
+                      value={draft.notes}
+                      onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+                      rows={2}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-sm">
+                    <span className="text-gray-500">用戶評價</span>
                     <textarea
                       value={draft.tasting_note}
                       onChange={(e) => setDraft({ ...draft, tasting_note: e.target.value })}
                       rows={3}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
                     />
                   </label>
+
                   <div className="space-y-2">
-                    <p className="text-sm text-gray-500">標籤</p>
+                    <p className="text-sm text-gray-500">分類標籤</p>
                     {draft.tags.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {draft.tags.map((tag) => (
                           <button
                             key={tag}
                             type="button"
-                            onClick={() => handleRemoveDraftTag(tag)}
-                            className="min-h-9 rounded-full bg-gray-100 px-3 text-xs text-gray-600 transition hover:bg-gray-200"
+                            onClick={() =>
+                              setDraft({ ...draft, tags: draft.tags.filter((item) => item !== tag) })
+                            }
+                            className="min-h-9 rounded-full bg-gray-100 px-3 text-xs text-gray-600"
                           >
                             #{tag} ×
                           </button>
@@ -366,19 +518,19 @@ export default function CatalogPage() {
                     )}
                     <div className="flex gap-2">
                       <input
-                        value={newTagInput}
-                        onChange={(e) => setNewTagInput(e.target.value)}
+                        value={editTagInput}
+                        onChange={(e) => setEditTagInput(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key !== "Enter") return;
                           e.preventDefault();
-                          handleAddDraftTag();
+                          handleAddEditTag();
                         }}
                         placeholder="新增標籤"
                         className="min-h-10 flex-1 rounded-lg border border-gray-200 px-3 text-sm"
                       />
                       <button
                         type="button"
-                        onClick={handleAddDraftTag}
+                        onClick={handleAddEditTag}
                         className="min-h-10 rounded-full bg-black px-4 text-sm text-white"
                       >
                         加入
@@ -399,34 +551,84 @@ export default function CatalogPage() {
                     </p>
                   </div>
 
-                  {selectedEntry.tags.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {selectedEntry.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
+                  <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <div className="rounded-full bg-gray-100 p-1">
+                      <div className="grid grid-cols-2 gap-1">
+                        {(["want", "tried"] as CatalogStatus[]).map((status) => (
+                          <button
+                            key={status}
+                            type="button"
+                            onClick={() => void handleQuickStatusChange(status)}
+                            className={`min-h-10 rounded-full text-sm transition ${
+                              selectedEntry.status === status
+                                ? "bg-black text-white"
+                                : "text-gray-600 hover:bg-white hover:text-gray-900"
+                            }`}
+                          >
+                            {statusLabel(status)}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  ) : null}
-
-                  <div className="mt-4 flex items-center gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs ${
-                        selectedEntry.status === "tried"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {statusLabel(selectedEntry.status)}
-                    </span>
-                    {selectedEntry.status === "tried" ? (
-                      <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-700">
-                        {renderStars(selectedEntry.rating)}
-                      </span>
-                    ) : null}
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-400">評分</p>
+                      <div className="mt-1 flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => void handleQuickRating(value)}
+                            className={`text-xl transition ${
+                              (selectedEntry.rating ?? 0) >= value
+                                ? "text-amber-500"
+                                : "text-gray-300 hover:text-amber-400"
+                            }`}
+                          >
+                            ★
+                          </button>
+                        ))}
+                        <span className="ml-2 text-xs text-gray-500">{renderStars(selectedEntry.rating)}</span>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-400">分類標籤</p>
+                      {selectedEntry.tags.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {selectedEntry.tags.map((tag) => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => void handleQuickRemoveTag(tag)}
+                              className="min-h-9 rounded-full bg-gray-100 px-3 text-xs text-gray-600"
+                            >
+                              #{tag} ×
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs text-gray-400">尚未設定標籤</p>
+                      )}
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          value={quickTagInput}
+                          onChange={(e) => setQuickTagInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key !== "Enter") return;
+                            e.preventDefault();
+                            void handleQuickAddTag();
+                          }}
+                          placeholder="新增標籤"
+                          className="min-h-10 flex-1 rounded-lg border border-gray-200 px-3 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleQuickAddTag()}
+                          className="min-h-10 rounded-full bg-black px-4 text-sm text-white"
+                        >
+                          加入
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="mt-5 space-y-4 rounded-2xl border border-gray-200 bg-white px-4 py-5 shadow-sm sm:px-5">
@@ -453,9 +655,9 @@ export default function CatalogPage() {
                       </section>
                     ) : null}
                     <section>
-                      <p className="text-xs font-medium tracking-wide text-gray-400">品飲筆記</p>
+                      <p className="text-xs font-medium tracking-wide text-gray-400">用戶評價</p>
                       <p className="mt-1 text-sm leading-6 text-gray-700">
-                        {selectedEntry.tasting_note || "尚未記錄品飲心得。"}
+                        {selectedEntry.tasting_note || "尚未記錄用戶評價。"}
                       </p>
                     </section>
                   </div>

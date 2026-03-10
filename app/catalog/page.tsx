@@ -26,7 +26,7 @@ function normalizeTag(tag: string): string {
 
 function renderStars(rating: number | null): string {
   const count = rating ?? 0;
-  return `${"★".repeat(count)}${"☆".repeat(Math.max(0, 5 - count))}`;
+  return count > 0 ? "★".repeat(count) : "";
 }
 
 function statusLabel(status: CatalogStatus): string {
@@ -166,6 +166,16 @@ export default function CatalogPage() {
     () => entries.filter((entry) => entry.status === catalogMode),
     [entries, catalogMode]
   );
+
+  const summary = useMemo(() => {
+    const wantCount = entries.filter((entry) => entry.status === "want").length;
+    const triedCount = entries.filter((entry) => entry.status === "tried").length;
+    return {
+      total: entries.length,
+      want: wantCount,
+      tried: triedCount,
+    };
+  }, [entries]);
 
   const allTags = useMemo(() => {
     const unique = new Set<string>();
@@ -356,19 +366,22 @@ export default function CatalogPage() {
 
   return (
     <>
-      <main className="min-h-screen bg-gray-50 px-4 pb-12 pt-32 text-black sm:px-6 sm:pt-36">
+      <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(env(safe-area-inset-bottom)+3rem)] pt-32 text-black sm:px-5 sm:pt-36">
         <div className="mx-auto w-full max-w-5xl">
-          <div className="mb-4 text-left">
-            <p className="text-sm text-gray-500">已收錄 {sortedEntries.length} 項</p>
+          <div className="mb-3 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
+            <p className="text-sm font-medium text-gray-700">已收錄 {sortedEntries.length} 項</p>
+            <p className="mt-0.5 text-xs text-gray-500">
+              全部 {summary.total} ・ 想試 {summary.want} ・ 圖鑑 {summary.tried}
+            </p>
           </div>
 
           {!isLoading && modeEntries.length > 0 ? (
-            <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+            <section className="mb-3 rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm">
               <div className="flex items-center gap-2">
                 <select
                   value={sortMode}
                   onChange={(e) => setSortMode(e.target.value as SortMode)}
-                  className="min-h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700"
+                  className="min-h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700"
                 >
                   <option value="latest">最新加入</option>
                   <option value="earliest">最早加入</option>
@@ -378,7 +391,7 @@ export default function CatalogPage() {
               </div>
 
               {allTags.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   {allTags.map((tag) => {
                     const active = selectedTags.includes(tag);
                     return (
@@ -386,7 +399,7 @@ export default function CatalogPage() {
                         key={tag}
                         type="button"
                         onClick={() => handleToggleFilterTag(tag)}
-                        className={`min-h-9 rounded-full px-3 text-xs transition ${
+                        className={`min-h-8 rounded-full px-2.5 text-[11px] transition ${
                           active
                             ? "bg-emerald-100 text-emerald-700"
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -421,13 +434,13 @@ export default function CatalogPage() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {sortedEntries.map((entry) => {
                 const title = entry.possible_variety_display || entry.fruit_category_display || "未命名水果";
                 return (
                   <article
                     key={entry.id}
-                    className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                    className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
                   >
                     <button
                       type="button"
@@ -441,16 +454,13 @@ export default function CatalogPage() {
                           className="h-full w-full object-cover"
                         />
                       </div>
-                      <div className="space-y-1.5 px-2 py-2">
+                      <div className="space-y-1 px-2 py-1.5">
                         <p className="line-clamp-1 text-xs font-semibold text-gray-900 sm:text-sm">
                           {toHongKongTerminology(title)}
                         </p>
-                        <p className="line-clamp-1 text-[11px] text-gray-500 sm:text-xs">
-                          {toHongKongTerminology(entry.origin_display || "產地未標註")}
+                        <p className="h-4 text-[11px] font-medium leading-4 text-amber-500">
+                          {entry.rating ? renderStars(entry.rating) : ""}
                         </p>
-                        {entry.rating ? (
-                          <p className="text-[11px] font-medium text-amber-500">{renderStars(entry.rating)}</p>
-                        ) : null}
                       </div>
                     </button>
                   </article>
@@ -515,7 +525,7 @@ export default function CatalogPage() {
               </button>
             </div>
 
-            <div className="h-[calc(100dvh-4.5rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain p-4 sm:p-5">
+            <div className="h-[calc(100dvh-4.5rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain p-4 [-webkit-overflow-scrolling:touch] sm:p-5">
               {!isEditing ? (
                 <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
                   <img

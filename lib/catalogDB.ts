@@ -1,5 +1,11 @@
 import Dexie, { type Table } from "dexie";
 import { normalizeAnalysisResult } from "@/lib/fruitProfile";
+import {
+  normalizeAnalysisRecordFields,
+  normalizeCatalogCoreFields,
+  normalizeFruitCategoryDisplay,
+  normalizeOriginDisplay,
+} from "@/lib/normalizer";
 
 export type CatalogStatus = "want" | "tried";
 
@@ -106,10 +112,11 @@ export function generateDefaultTags(input: {
   origin_display: string;
 }): string[] {
   const tags: string[] = [];
-  if (input.fruit_category_display.trim()) {
-    tags.push(input.fruit_category_display.trim());
+  const normalizedCategory = normalizeFruitCategoryDisplay(input.fruit_category_display);
+  if (normalizedCategory) {
+    tags.push(normalizedCategory);
   }
-  tags.push(...extractOriginTags(input.origin_display));
+  tags.push(...extractOriginTags(normalizeOriginDisplay(input.origin_display)));
   return Array.from(new Set(tags.map((tag) => normalizeTag(tag)).filter(Boolean))).slice(0, 4);
 }
 
@@ -118,10 +125,11 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
   const bool = (value: unknown) => value === true;
   const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
-  const analysisResult =
+  const analysisResultRaw =
     raw.analysis_result && typeof raw.analysis_result === "object"
       ? (raw.analysis_result as Record<string, unknown>)
       : {};
+  const analysisResult = normalizeAnalysisRecordFields(analysisResultRaw);
   const normalizedAnalysis = normalizeAnalysisResult(analysisResult);
   const analysisStr = (key: string) => str(analysisResult[key]);
   const createdAt = num(raw.created_at) ?? Date.now();
@@ -133,6 +141,16 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
       ? ratingRaw
       : null;
 
+  const normalizedCore = normalizeCatalogCoreFields({
+    fruit_category_display:
+      str(raw.fruit_category_display) || normalizedAnalysis.fruit_category_display,
+    possible_variety_display:
+      str(raw.possible_variety_display) || normalizedAnalysis.possible_variety_display,
+    possible_variety_original:
+      str(raw.possible_variety_original) || normalizedAnalysis.possible_variety_original,
+    origin_display: str(raw.origin_display) || normalizedAnalysis.origin_display,
+  });
+
   return {
     id: num(raw.id) ?? undefined,
     image_data: str(raw.image_data),
@@ -141,19 +159,16 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
     updated_at: num(raw.updated_at) ?? createdAt,
     app_version: str(raw.app_version),
     analysis_result: analysisResult,
-    fruit_category_display:
-      str(raw.fruit_category_display) || normalizedAnalysis.fruit_category_display,
+    fruit_category_display: normalizedCore.fruit_category_display,
     fruit_category_original: str(raw.fruit_category_original) || analysisStr("fruit_category_original"),
     identified_product_name:
       str(raw.identified_product_name) || analysisStr("identified_product_name"),
-    possible_variety_display:
-      str(raw.possible_variety_display) || normalizedAnalysis.possible_variety_display,
-    possible_variety_original:
-      str(raw.possible_variety_original) || normalizedAnalysis.possible_variety_original,
+    possible_variety_display: normalizedCore.possible_variety_display,
+    possible_variety_original: normalizedCore.possible_variety_original,
     possible_variety_basis: str(raw.possible_variety_basis) || analysisStr("possible_variety_basis"),
     variety_characteristics:
       str(raw.variety_characteristics) || normalizedAnalysis.variety_characteristics,
-    origin_display: str(raw.origin_display) || normalizedAnalysis.origin_display,
+    origin_display: normalizedCore.origin_display,
     brand_or_farm_display:
       str(raw.brand_or_farm_display) || normalizedAnalysis.brand_or_farm_display,
     season_months: str(raw.season_months) || normalizedAnalysis.season_months,
@@ -177,7 +192,8 @@ export type CatalogSaveDraft = {
 };
 
 export function createCatalogSaveDraftFromAnalysis(analysisResult: Record<string, unknown>): CatalogSaveDraft {
-  const normalized = normalizeAnalysisResult(analysisResult);
+  const normalizedRecord = normalizeAnalysisRecordFields(analysisResult);
+  const normalized = normalizeAnalysisResult(normalizedRecord);
   return {
     possible_variety_display: normalized.possible_variety_display,
     origin_display: normalized.origin_display,
@@ -200,8 +216,9 @@ export function createCatalogEntryFromAnalysis(input: {
   is_edited?: boolean;
 }): Omit<FruitCatalogEntry, "id"> {
   const str = (value: unknown) => (typeof value === "string" ? value : "");
-  const normalized = normalizeAnalysisResult(input.analysis_result);
-  const draftDefaults = createCatalogSaveDraftFromAnalysis(input.analysis_result);
+  const normalizedAnalysisRecord = normalizeAnalysisRecordFields(input.analysis_result);
+  const normalized = normalizeAnalysisResult(normalizedAnalysisRecord);
+  const draftDefaults = createCatalogSaveDraftFromAnalysis(normalizedAnalysisRecord);
   const status = input.overrides?.status === "tried" ? "tried" : draftDefaults.status;
   const hasTagsOverride =
     !!input.overrides && Object.prototype.hasOwnProperty.call(input.overrides, "tags");
@@ -212,9 +229,13 @@ export function createCatalogEntryFromAnalysis(input: {
     typeof ratingRaw === "number" && Number.isInteger(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5
       ? ratingRaw
       : null;
-  const possibleVarietyDisplay =
-    input.overrides?.possible_variety_display ?? draftDefaults.possible_variety_display;
-  const originDisplay = input.overrides?.origin_display ?? draftDefaults.origin_display;
+  const normalizedOverrideCore = normalizeCatalogCoreFields({
+    fruit_category_display: normalized.fruit_category_display,
+    possible_variety_display:
+      input.overrides?.possible_variety_display ?? draftDefaults.possible_variety_display,
+    possible_variety_original: normalized.possible_variety_original,
+    origin_display: input.overrides?.origin_display ?? draftDefaults.origin_display,
+  });
   const timestamp = input.created_at ?? Date.now();
 
   return {
@@ -222,15 +243,15 @@ export function createCatalogEntryFromAnalysis(input: {
     created_at: timestamp,
     updated_at: timestamp,
     app_version: input.app_version,
-    analysis_result: input.analysis_result,
+    analysis_result: normalizedAnalysisRecord,
     fruit_category_display: normalized.fruit_category_display,
-    fruit_category_original: str(input.analysis_result.fruit_category_original),
-    identified_product_name: str(input.analysis_result.identified_product_name),
-    possible_variety_display: possibleVarietyDisplay,
-    possible_variety_original: normalized.possible_variety_original,
-    possible_variety_basis: str(input.analysis_result.possible_variety_basis),
+    fruit_category_original: str(normalizedAnalysisRecord.fruit_category_original),
+    identified_product_name: str(normalizedAnalysisRecord.identified_product_name),
+    possible_variety_display: normalizedOverrideCore.possible_variety_display,
+    possible_variety_original: normalizedOverrideCore.possible_variety_original,
+    possible_variety_basis: str(normalizedAnalysisRecord.possible_variety_basis),
     variety_characteristics: normalized.variety_characteristics,
-    origin_display: originDisplay,
+    origin_display: normalizedOverrideCore.origin_display,
     brand_or_farm_display: normalized.brand_or_farm_display,
     season_months: normalized.season_months,
     summary_zh_tw: normalized.summary_zh_tw,

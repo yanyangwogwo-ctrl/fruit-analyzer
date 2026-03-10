@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { normalizeCatalogCoreFields } from "@/lib/normalizer";
 
 export const maxDuration = 60;
 
@@ -55,14 +56,21 @@ function normalizeQuickAddResult(raw: unknown): QuickAddAIResult {
   const strArr = (value: unknown) =>
     Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
-  return {
+  const normalizedCore = normalizeCatalogCoreFields({
     fruit_category_display: str(obj.fruit_category_display),
-    fruit_category_original: str(obj.fruit_category_original),
     possible_variety_display: str(obj.possible_variety_display),
     possible_variety_original: str(obj.possible_variety_original),
+    origin_display: str(obj.origin_display),
+  });
+
+  return {
+    fruit_category_display: normalizedCore.fruit_category_display,
+    fruit_category_original: str(obj.fruit_category_original),
+    possible_variety_display: normalizedCore.possible_variety_display,
+    possible_variety_original: normalizedCore.possible_variety_original,
     possible_variety_basis: str(obj.possible_variety_basis),
     variety_characteristics: str(obj.variety_characteristics),
-    origin_display: str(obj.origin_display),
+    origin_display: normalizedCore.origin_display,
     season_months: str(obj.season_months),
     summary_zh_tw: str(obj.summary_zh_tw),
     suggested_tags: Array.from(new Set(strArr(obj.suggested_tags).map(normalizeTag).filter(Boolean))).slice(

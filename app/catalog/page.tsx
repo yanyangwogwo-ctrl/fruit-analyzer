@@ -12,6 +12,10 @@ import {
   type FruitCatalogEntry,
 } from "@/lib/catalogDB";
 import { toHongKongTerminology } from "@/lib/hkTerminology";
+import {
+  normalizeCatalogCoreFields,
+  normalizeCategoryForGrouping,
+} from "@/lib/normalizer";
 
 type SortMode = "latest" | "earliest" | "highest" | "lowest";
 type QuickAddMode = "single" | "batch";
@@ -86,11 +90,11 @@ function pickFruitEmojiSeed(text: string): string {
     [/士多啤梨|草莓/i, "🍓"],
     [/甜瓜|香瓜|蜜瓜|哈密瓜/i, "🍈"],
     [/蘋果/i, "🍎"],
-    [/葡萄/i, "🍇"],
+    [/提子|葡萄/i, "🍇"],
     [/車厘子|櫻桃/i, "🍒"],
     [/桃|水蜜桃/i, "🍑"],
     [/西柚|葡萄柚/i, "🍊"],
-    [/橙|柑|柑橘/i, "🍊"],
+    [/橙|柑|柑橘|柚/i, "🍊"],
     [/香蕉/i, "🍌"],
     [/火龍果/i, "🐉"],
     [/菠蘿|鳳梨/i, "🍍"],
@@ -143,16 +147,23 @@ function createQuickAddAnalysisResult(input: {
   notes: string;
   confidence_level: string;
 }): Record<string, unknown> {
-  return {
+  const normalizedCore = normalizeCatalogCoreFields({
     fruit_category_display: input.fruit_category_display,
+    possible_variety_display: input.possible_variety_display || input.entered_name,
+    possible_variety_original: input.possible_variety_original,
+    origin_display: input.origin_display,
+  });
+
+  return {
+    fruit_category_display: normalizedCore.fruit_category_display,
     fruit_category_original: input.fruit_category_original,
     identified_product_name: "",
     identified_product_confidence: "",
-    possible_variety_display: input.possible_variety_display || input.entered_name,
-    possible_variety_original: input.possible_variety_original,
+    possible_variety_display: normalizedCore.possible_variety_display,
+    possible_variety_original: normalizedCore.possible_variety_original,
     possible_variety_basis: input.possible_variety_basis,
     variety_characteristics: input.variety_characteristics,
-    origin_display: input.origin_display,
+    origin_display: normalizedCore.origin_display,
     brand_or_farm_display: "",
     grade_display: "",
     season_months: input.season_months,
@@ -219,12 +230,6 @@ function detectImageExt(dataUrl: string): string {
   if (dataUrl.startsWith("data:image/png")) return "png";
   if (dataUrl.startsWith("data:image/gif")) return "gif";
   return "jpg";
-}
-
-function resolveCategoryLabel(value: unknown): string {
-  if (typeof value !== "string") return "未分類";
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : "未分類";
 }
 
 function sortEntriesByMode(entries: FruitCatalogEntry[], sortMode: SortMode): FruitCatalogEntry[] {
@@ -387,7 +392,7 @@ export default function CatalogPage() {
   const groupedSections = useMemo(() => {
     const groups = new Map<string, FruitCatalogEntry[]>();
     for (const entry of filteredEntries) {
-      const category = resolveCategoryLabel(entry.fruit_category_display);
+      const category = normalizeCategoryForGrouping(entry.fruit_category_display);
       const bucket = groups.get(category);
       if (bucket) {
         bucket.push(entry);
@@ -427,8 +432,18 @@ export default function CatalogPage() {
     markEdited: boolean
   ) => {
     if (typeof entry.id !== "number") return;
+    const normalizedCore = normalizeCatalogCoreFields({
+      fruit_category_display: partial.fruit_category_display ?? entry.fruit_category_display,
+      possible_variety_display: partial.possible_variety_display ?? entry.possible_variety_display,
+      possible_variety_original: partial.possible_variety_original ?? entry.possible_variety_original,
+      origin_display: partial.origin_display ?? entry.origin_display,
+    });
     const payload: Partial<FruitCatalogEntry> = {
       ...partial,
+      fruit_category_display: normalizedCore.fruit_category_display,
+      possible_variety_display: normalizedCore.possible_variety_display,
+      possible_variety_original: normalizedCore.possible_variety_original,
+      origin_display: normalizedCore.origin_display,
       updated_at: Date.now(),
       is_edited: markEdited ? true : entry.is_edited,
     };
@@ -591,9 +606,15 @@ export default function CatalogPage() {
     const strArr = (value: unknown) =>
       Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
-    const fruitCategory = str(response.fruit_category_display);
-    const possibleVariety = str(response.possible_variety_display) || enteredName;
-    const originDisplay = str(response.origin_display);
+    const normalizedCore = normalizeCatalogCoreFields({
+      fruit_category_display: str(response.fruit_category_display),
+      possible_variety_display: str(response.possible_variety_display) || enteredName,
+      possible_variety_original: str(response.possible_variety_original),
+      origin_display: str(response.origin_display),
+    });
+    const fruitCategory = normalizedCore.fruit_category_display;
+    const possibleVariety = normalizedCore.possible_variety_display || enteredName;
+    const originDisplay = normalizedCore.origin_display;
     const seasonMonths = str(response.season_months);
     const summary = str(response.summary_zh_tw);
     const analysisResult = createQuickAddAnalysisResult({
@@ -601,7 +622,7 @@ export default function CatalogPage() {
       fruit_category_display: fruitCategory,
       fruit_category_original: str(response.fruit_category_original),
       possible_variety_display: possibleVariety,
-      possible_variety_original: str(response.possible_variety_original),
+      possible_variety_original: normalizedCore.possible_variety_original,
       possible_variety_basis: str(response.possible_variety_basis),
       variety_characteristics: str(response.variety_characteristics),
       origin_display: originDisplay,
@@ -651,11 +672,18 @@ export default function CatalogPage() {
   };
 
   const saveQuickAddDraft = async (draftValue: QuickAddDraft) => {
-    const finalAnalysis = {
-      ...draftValue.analysis_result,
+    const normalizedCore = normalizeCatalogCoreFields({
       fruit_category_display: draftValue.fruit_category_display,
       possible_variety_display: draftValue.possible_variety_display,
+      possible_variety_original: draftValue.analysis_result.possible_variety_original,
       origin_display: draftValue.origin_display,
+    });
+    const finalAnalysis = {
+      ...draftValue.analysis_result,
+      fruit_category_display: normalizedCore.fruit_category_display,
+      possible_variety_display: normalizedCore.possible_variety_display,
+      possible_variety_original: normalizedCore.possible_variety_original,
+      origin_display: normalizedCore.origin_display,
       season_months: draftValue.season_months,
       summary_zh_tw: draftValue.summary_zh_tw,
     };
@@ -665,8 +693,8 @@ export default function CatalogPage() {
       app_version: version,
       overrides: {
         status: draftValue.status,
-        possible_variety_display: draftValue.possible_variety_display,
-        origin_display: draftValue.origin_display,
+        possible_variety_display: normalizedCore.possible_variety_display,
+        origin_display: normalizedCore.origin_display,
         tags: draftValue.tags,
         rating: draftValue.status === "tried" ? draftValue.rating : null,
         tasting_note: draftValue.tasting_note,

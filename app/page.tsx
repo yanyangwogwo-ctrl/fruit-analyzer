@@ -4,6 +4,7 @@ import imageCompression from "browser-image-compression";
 import { useEffect, useMemo, useRef, useState } from "react";
 import packageJson from "../package.json";
 import { buildFruitProfileRows, normalizeAnalysisResult } from "@/lib/fruitProfile";
+import { normalizeAnalysisRecordFields } from "@/lib/normalizer";
 import {
   catalogDB,
   createCatalogEntryFromAnalysis,
@@ -233,8 +234,9 @@ export default function Home() {
               setRawAnalysisResult(null);
               setHasAnalyzed(true);
             } else {
-              setAnalysisResult(normalizeAnalysisResult(data));
-              setRawAnalysisResult(data);
+              const normalizedRecord = normalizeAnalysisRecordFields(data);
+              setAnalysisResult(normalizeAnalysisResult(normalizedRecord));
+              setRawAnalysisResult(normalizedRecord);
               setHasAnalyzed(true);
             }
           } catch (err) {

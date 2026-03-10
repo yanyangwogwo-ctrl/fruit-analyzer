@@ -20,6 +20,19 @@ const COUNTRY_RULES: Array<{ pattern: RegExp; country: string }> = [
   { pattern: /(越南|vietnam)/i, country: "越南" },
 ];
 
+export const KNOWN_COUNTRIES = [
+  "日本",
+  "台灣",
+  "韓國",
+  "澳洲",
+  "美國",
+  "智利",
+  "秘魯",
+  "厄瓜多",
+  "紐西蘭",
+  "中國",
+] as const;
+
 const JAPAN_REGION_ALIAS: Record<string, string> = {
   hokkaido: "北海道",
   aomori: "青森",
@@ -330,4 +343,13 @@ export function normalizeAnalysisRecordFields(
 
 export function normalizeCategoryForGrouping(value: unknown): string {
   return normalizeFruitCategoryDisplay(value);
+}
+
+export function classifyOriginCountry(originDisplay: unknown): (typeof KNOWN_COUNTRIES)[number] | "其他" {
+  const source = normalizeText(originDisplay);
+  if (!source) return "其他";
+  for (const country of KNOWN_COUNTRIES) {
+    if (source.includes(country)) return country;
+  }
+  return "其他";
 }

@@ -13,6 +13,8 @@ import {
 } from "@/lib/catalogDB";
 import { toHongKongTerminology } from "@/lib/hkTerminology";
 import {
+  KNOWN_COUNTRIES,
+  classifyOriginCountry,
   normalizeCatalogCoreFields,
   normalizeCategoryForGrouping,
 } from "@/lib/normalizer";
@@ -267,7 +269,7 @@ export default function CatalogPage() {
   const [entries, setEntries] = useState<FruitCatalogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<FruitCatalogEntry | null>(null);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedCountry, setSelectedCountry] = useState("全部");
   const [sortMode, setSortMode] = useState<SortMode>("latest");
   const [quickTagInput, setQuickTagInput] = useState("");
   const [quickReviewInput, setQuickReviewInput] = useState("");
@@ -309,7 +311,7 @@ export default function CatalogPage() {
   }, [selectedEntry]);
 
   useEffect(() => {
-    setSelectedTags([]);
+    setSelectedCountry("全部");
     setSortMode("latest");
   }, [catalogMode]);
 
@@ -371,27 +373,35 @@ export default function CatalogPage() {
     };
   }, [entries]);
 
-  const allTags = useMemo(() => {
-    const unique = new Set<string>();
+  const availableCountries = useMemo(() => {
+    const present = new Set<string>();
     for (const entry of modeEntries) {
-      for (const tag of entry.tags) unique.add(tag);
+      const country = classifyOriginCountry(entry.origin_display);
+      if (country !== "其他") present.add(country);
     }
-    return Array.from(unique).sort((a, b) => a.localeCompare(b, "zh-Hant"));
+    const ordered = KNOWN_COUNTRIES.filter((country) => present.has(country));
+    return ["全部", ...ordered, "其他"];
   }, [modeEntries]);
 
-  const filteredEntries = useMemo(
+  const countryFilteredEntries = useMemo(
     () =>
       modeEntries.filter((entry) => {
-        if (selectedTags.length === 0) return true;
-        const tagSet = new Set(entry.tags);
-        return selectedTags.every((tag) => tagSet.has(tag));
+        if (selectedCountry === "全部") return true;
+        return classifyOriginCountry(entry.origin_display) === selectedCountry;
       }),
-    [modeEntries, selectedTags]
+    [modeEntries, selectedCountry]
   );
+
+  useEffect(() => {
+    if (selectedCountry === "全部") return;
+    if (!availableCountries.includes(selectedCountry)) {
+      setSelectedCountry("全部");
+    }
+  }, [availableCountries, selectedCountry]);
 
   const groupedSections = useMemo(() => {
     const groups = new Map<string, FruitCatalogEntry[]>();
-    for (const entry of filteredEntries) {
+    for (const entry of countryFilteredEntries) {
       const category = normalizeCategoryForGrouping(entry.fruit_category_display);
       const bucket = groups.get(category);
       if (bucket) {
@@ -419,7 +429,7 @@ export default function CatalogPage() {
       return a.category.localeCompare(b.category, "zh-Hant");
     });
     return sections;
-  }, [filteredEntries, sortMode]);
+  }, [countryFilteredEntries, sortMode]);
 
   const updateEntryInState = (updatedEntry: FruitCatalogEntry) => {
     setEntries((prev) => prev.map((entry) => (entry.id === updatedEntry.id ? updatedEntry : entry)));
@@ -480,10 +490,6 @@ export default function CatalogPage() {
     setSelectedEntry(entry);
     resetEditArtifacts();
     setQuickTagInput("");
-  };
-
-  const handleToggleFilterTag = (tag: string) => {
-    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]));
   };
 
   const handleQuickStatusChange = async (status: CatalogStatus) => {
@@ -819,7 +825,7 @@ export default function CatalogPage() {
       <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(env(safe-area-inset-bottom)+3rem)] pt-32 text-black sm:px-5 sm:pt-36">
         <div className="mx-auto w-full max-w-5xl">
           <div className="mb-3 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
-            <p className="text-sm font-medium text-gray-700">已收錄 {filteredEntries.length} 項</p>
+            <p className="text-sm font-medium text-gray-700">已收錄 {countryFilteredEntries.length} 項</p>
             <p className="mt-0.5 text-xs text-gray-500">
               全部 {summary.total} ・ 想試 {summary.want} ・ 圖鑑 {summary.tried}
             </p>
@@ -848,27 +854,20 @@ export default function CatalogPage() {
                 </select>
               </div>
 
-              {modeEntries.length > 0 && allTags.length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {allTags.map((tag) => {
-                    const active = selectedTags.includes(tag);
-                    return (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => handleToggleFilterTag(tag)}
-                        className={`min-h-8 rounded-full px-2.5 text-[11px] transition ${
-                          active
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        }`}
-                      >
-                        {toHongKongTerminology(tag)}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[3rem_1fr] sm:items-center">
+                <p className="text-xs text-gray-500">國家</p>
+                <select
+                  value={selectedCountry}
+                  onChange={(e) => setSelectedCountry(e.target.value)}
+                  className="min-h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700"
+                >
+                  {availableCountries.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </section>
           ) : null}
 
@@ -885,10 +884,10 @@ export default function CatalogPage() {
               <p>沒有符合條件的水果</p>
               <button
                 type="button"
-                onClick={() => setSelectedTags([])}
+                onClick={() => setSelectedCountry("全部")}
                 className="mt-2 rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600"
               >
-                試試清除篩選條件
+                重設為全部
               </button>
             </div>
           ) : (

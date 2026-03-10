@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { normalizeCatalogCoreFields } from "@/lib/normalizer";
+import { GEMINI_MODEL, generationConfig } from "@/lib/ai-model";
 
 export const maxDuration = 60;
 
@@ -105,10 +106,12 @@ export async function POST(request: Request) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({
-      model: modelName,
-      generationConfig: { responseMimeType: "application/json" },
+      model: GEMINI_MODEL,
+      generationConfig: {
+        ...generationConfig,
+        responseMimeType: "application/json",
+      },
     });
 
     const result = await model.generateContent([
@@ -127,7 +130,7 @@ export async function POST(request: Request) {
         ...normalized,
         input_name: inputName,
       },
-      { headers: { "X-Gemini-Model": modelName } }
+      { headers: { "X-Gemini-Model": GEMINI_MODEL } }
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

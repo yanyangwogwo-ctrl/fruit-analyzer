@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { GEMINI_MODEL, generationConfig } from "@/lib/ai-model";
 
 // 設定 Vercel Serverless Function 最大執行時間為 60 秒 (Hobby 方案上限)
 export const maxDuration = 60;
@@ -216,12 +217,10 @@ export async function POST(request: Request) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    // 動態讀取環境變數，預設使用 flash
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-
     const model = genAI.getGenerativeModel({
-      model: modelName,
+      model: GEMINI_MODEL,
       generationConfig: {
+        ...generationConfig,
         responseMimeType: "application/json",
       },
     });
@@ -245,7 +244,7 @@ export async function POST(request: Request) {
     const json = JSON.parse(text);
     const normalized = normalizeAnalyzeResult(json);
     return NextResponse.json(normalized, {
-      headers: { "X-Gemini-Model": modelName },
+      headers: { "X-Gemini-Model": GEMINI_MODEL },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

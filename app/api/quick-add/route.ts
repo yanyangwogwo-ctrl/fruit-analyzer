@@ -123,7 +123,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "AI 沒有回傳內容。" }, { status: 502 });
     }
 
-    const parsed = JSON.parse(text);
+    // 模型有時會回傳 ```json 包裹的程式碼區塊，先清理再解析
+    const cleanedText = text
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/```$/i, "")
+      .trim();
+
+    const parsed = JSON.parse(cleanedText);
     const normalized = normalizeQuickAddResult(parsed);
     return NextResponse.json(
       {

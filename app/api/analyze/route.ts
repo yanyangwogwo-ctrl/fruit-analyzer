@@ -241,7 +241,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const json = JSON.parse(text);
+    // 部分情況下模型可能會包一層 ```json 程式碼區塊，先行清理再解析
+    const cleanedText = text
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/```$/i, "")
+      .trim();
+
+    const json = JSON.parse(cleanedText);
     const normalized = normalizeAnalyzeResult(json);
     return NextResponse.json(normalized, {
       headers: { "X-Gemini-Model": GEMINI_MODEL },

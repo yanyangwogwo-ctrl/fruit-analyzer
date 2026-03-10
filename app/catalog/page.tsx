@@ -363,16 +363,6 @@ export default function CatalogPage() {
     [entries, catalogMode]
   );
 
-  const summary = useMemo(() => {
-    const wantCount = entries.filter((entry) => entry.status === "want").length;
-    const triedCount = entries.filter((entry) => entry.status === "tried").length;
-    return {
-      total: entries.length,
-      want: wantCount,
-      tried: triedCount,
-    };
-  }, [entries]);
-
   const availableCountries = useMemo(() => {
     const present = new Set<string>();
     for (const entry of modeEntries) {
@@ -816,53 +806,40 @@ export default function CatalogPage() {
 
   return (
     <>
-      <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(env(safe-area-inset-bottom)+3rem)] pt-32 text-black sm:px-5 sm:pt-36">
+      <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(env(safe-area-inset-bottom)+3rem)] pt-24 text-black sm:px-5 sm:pt-28">
         <div className="mx-auto w-full max-w-5xl">
-          <div className="mb-3 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
-            <p className="text-sm font-medium text-gray-700">已收錄 {countryFilteredEntries.length} 項</p>
-            <p className="mt-0.5 text-xs text-gray-500">
-              全部 {summary.total} ・ 想試 {summary.want} ・ 圖鑑 {summary.tried}
-            </p>
-          </div>
-
           {!isLoading ? (
-            <section className="mb-3 rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={openQuickAddModal}
-                  className="min-h-10 shrink-0 rounded-lg bg-black px-3 text-xs font-medium text-white transition hover:opacity-90 sm:text-sm"
-                >
-                  {catalogMode === "want" ? "快速加入想試" : "快速加入圖鑑"}
-                </button>
-                <select
-                  value={sortMode}
-                  onChange={(e) => setSortMode(e.target.value as SortMode)}
-                  disabled={modeEntries.length === 0}
-                  className="min-h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
-                >
-                  <option value="latest">最新加入</option>
-                  <option value="earliest">最早加入</option>
-                  {catalogMode === "tried" ? <option value="highest">最高評分</option> : null}
-                  {catalogMode === "tried" ? <option value="lowest">最低評分</option> : null}
-                </select>
-              </div>
-
-              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[3rem_1fr] sm:items-center">
-                <p className="text-xs text-gray-500">地區</p>
-                <select
-                  value={selectedCountry}
-                  onChange={(e) => setSelectedCountry(e.target.value)}
-                  className="min-h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700"
-                >
-                  {availableCountries.map((country) => (
-                    <option key={country} value={country}>
-                      {country}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </section>
+            <div className="mb-3 flex items-center gap-2">
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as SortMode)}
+                disabled={modeEntries.length === 0}
+                className="h-9 flex-1 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700 shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
+              >
+                <option value="latest">排序: 最新</option>
+                <option value="earliest">排序: 最早</option>
+                {catalogMode === "tried" ? <option value="highest">排序: 高分</option> : null}
+                {catalogMode === "tried" ? <option value="lowest">排序: 低分</option> : null}
+              </select>
+              <button
+                type="button"
+                onClick={openQuickAddModal}
+                className="h-9 shrink-0 rounded-full bg-black px-3 text-xs font-medium text-white shadow-sm transition hover:opacity-90"
+              >
+                +加入
+              </button>
+              <select
+                value={selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value)}
+                className="h-9 flex-1 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700 shadow-sm"
+              >
+                {availableCountries.map((country) => (
+                  <option key={country} value={country}>
+                    {country === "全部" ? "地區: 全部" : `地區: ${country}`}
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : null}
 
           {isLoading ? (

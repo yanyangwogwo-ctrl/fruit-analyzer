@@ -65,13 +65,13 @@ function normalizeTag(tag: string): string {
 function getCardTitleClass(title: string, gridCols: CatalogGridCols): string {
   const length = Array.from(title).length;
   if (gridCols === 4) {
-    if (length <= 8) return "line-clamp-2 text-[10px] leading-3 sm:text-[11px]";
-    if (length <= 18) return "line-clamp-2 text-[9px] leading-3 sm:text-[10px]";
-    return "line-clamp-2 text-[9px] leading-3";
+    if (length <= 8) return "line-clamp-2 text-[11px] leading-3.5 sm:text-[12px]";
+    if (length <= 18) return "line-clamp-2 text-[10px] leading-3.5 sm:text-[11px]";
+    return "line-clamp-2 text-[9px] leading-3 sm:text-[10px]";
   }
-  if (length <= 8) return "line-clamp-2 text-[12.5px] leading-4 sm:text-sm";
-  if (length <= 18) return "line-clamp-2 text-[11px] leading-4 sm:text-[12px]";
-  return "line-clamp-2 text-[10px] leading-3.5 sm:text-[11px]";
+  if (length <= 8) return "line-clamp-2 text-[13px] leading-4 sm:text-[14px]";
+  if (length <= 18) return "line-clamp-2 text-[11.5px] leading-4 sm:text-[12.5px]";
+  return "line-clamp-2 text-[10.5px] leading-3.5 sm:text-[11.5px]";
 }
 
 function handleToggleRating(current: number | null, nextValue: number): number | null {
@@ -98,18 +98,28 @@ function RatingStars({
   rating: number | null;
   sizeClass?: string;
 }) {
+  const safe = normalizeHalfStarValue(rating);
+  if (rating == null || safe <= 0) return null;
+  const fullCount = Math.floor(safe);
+  const hasHalf = safe - fullCount >= 0.5;
+  const stars: Array<"full" | "half"> = [
+    ...Array.from({ length: fullCount }, () => "full" as const),
+    ...(hasHalf ? (["half"] as const) : []),
+  ];
+
   return (
     <div className={`inline-flex items-center leading-none ${sizeClass}`}>
-      {[1, 2, 3, 4, 5].map((starIndex) => {
-        const fill = getStarFillClass(rating, starIndex);
+      {stars.map((fill, index) => {
         return (
-          <span key={starIndex} className="relative inline-flex h-[1em] w-[1em] items-center justify-center">
-            <span className="text-gray-300">★</span>
+          <span key={`${fill}-${index}`} className="relative inline-flex h-[1em] w-[1em] items-center justify-center">
             {fill === "full" ? (
-              <span className="absolute inset-0 overflow-hidden text-amber-500">★</span>
-            ) : fill === "half" ? (
-              <span className="absolute inset-0 w-1/2 overflow-hidden text-amber-500">★</span>
-            ) : null}
+              <span className="text-amber-500">★</span>
+            ) : (
+              <>
+                <span className="text-amber-500/25">★</span>
+                <span className="absolute inset-0 w-1/2 overflow-hidden text-amber-500">★</span>
+              </>
+            )}
           </span>
         );
       })}
@@ -545,7 +555,10 @@ export default function CatalogPage() {
     gridCols === 4
       ? "grid grid-cols-4 gap-1 sm:grid-cols-4 sm:gap-1.5"
       : "grid grid-cols-3 gap-1.5 sm:grid-cols-3 sm:gap-2";
-  const cardBodyClass = gridCols === 4 ? "flex h-14 flex-col justify-between p-1" : "flex h-16 flex-col justify-between px-1.5 py-1.5";
+  const cardBodyClass =
+    gridCols === 4
+      ? "flex h-14 flex-col justify-center gap-1 p-1"
+      : "flex h-16 flex-col justify-center gap-1 px-1.5 py-1.5";
   const starRowClass = gridCols === 4 ? "flex h-4 items-center justify-center" : "flex h-5 items-center justify-center";
   const starSizeClass = gridCols === 4 ? "text-[10px] sm:text-[11px]" : "text-[15px]";
 

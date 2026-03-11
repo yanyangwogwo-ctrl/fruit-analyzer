@@ -31,7 +31,21 @@ Guidelines:
 
 season_months: (knowledge-based) Typical global production season for this fruit/variety (e.g. "12月–5月"). Leave "" if uncertain. If filled, add to notes: "產季為一般典型月份，非包裝明示".
 
-summary_zh_tw: Write a 2-sentence professional summary in Traditional Chinese suitable for a fruit connoisseur's review post. Sentence 1: Introduce the fruit by origin, JA/brand, and variety. Sentence 2: Highlight premium indicators on the package (grade, sugar content, farming methods). Do NOT invent tasting notes; rely strictly on packaging claims.
+summary_zh_tw: Write a 2–3 sentence objective overview in Traditional Chinese, functioning as an informative entry for a fruit catalog.
+
+- DO NOT mechanically repeat the origin, brand, or variety names unless necessary for sentence structure (they are already provided in other fields).
+
+- IF identified_product_confidence is "high" or "medium":
+Use widely known background knowledge about the cultivar, production region, or product line when reasonably certain. Instead, summarize the product's notable characteristics, cultivar reputation, production-region significance, farming context, or market positioning. 
+
+- IF identified_product_confidence is "low" or empty:
+Provide a brief, objective description of the visible packaging design and what it claims, without adding external background information.
+
+- TONE & PREMIUM CLAIMS:
+Be an objective, knowledgeable reviewer. Treat premium claims on the packaging (such as high sugar content, special grades, or luxury positioning) with neutral detachment. Use phrasing like "包裝標榜..." or "主打..." rather than presenting such marketing claims as established facts.
+
+- RELIABILITY:
+Do NOT invent tasting notes or unsupported facts. If reliable contextual knowledge about the product or cultivar is not reasonably certain, prefer a neutral description or return "".
 
 notes: Use for season disclaimer and other uncertainties. Leave "" if nothing to add.
 

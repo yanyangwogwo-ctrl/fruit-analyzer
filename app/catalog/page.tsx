@@ -999,7 +999,7 @@ export default function CatalogPage() {
         </div>
       </main>
 
-      <div className="pointer-events-none fixed inset-x-0 z-20 flex justify-center bottom-[calc(env(safe-area-inset-bottom)+5.6rem)]">
+      <div className="pointer-events-none fixed inset-x-0 z-20 flex justify-center bottom-[calc(env(safe-area-inset-bottom)+5rem)]">
         <div className="pointer-events-auto flex w-[min(92vw,24rem)] items-center justify-center gap-2">
           <button
             type="button"
@@ -1008,7 +1008,7 @@ export default function CatalogPage() {
               setIsSortPickerOpen(true);
               setIsRegionPickerOpen(false);
             }}
-            className="h-8 flex-1 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700 shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
+            className="h-8 w-30 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700 shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
           >
             排序: {getSortLabel(sortMode)}
           </button>
@@ -1025,7 +1025,7 @@ export default function CatalogPage() {
               setIsRegionPickerOpen(true);
               setIsSortPickerOpen(false);
             }}
-            className="h-8 flex-1 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700 shadow-sm"
+            className="h-8 w-30 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700 shadow-sm"
           >
             地區: {selectedCountry}
           </button>
@@ -1035,7 +1035,7 @@ export default function CatalogPage() {
       {isSortPickerOpen ? (
         <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setIsSortPickerOpen(false)}>
           <div
-            className="absolute inset-x-4 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg bottom-[calc(env(safe-area-inset-bottom)+9.6rem)]"
+            className="absolute inset-x-4 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg bottom-[calc(env(safe-area-inset-bottom)+9rem)]"
             onClick={(e) => e.stopPropagation()}
           >
             {sortOptions.map((option) => (
@@ -1060,7 +1060,7 @@ export default function CatalogPage() {
       {isRegionPickerOpen ? (
         <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setIsRegionPickerOpen(false)}>
           <div
-            className="absolute inset-x-4 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg bottom-[calc(env(safe-area-inset-bottom)+9.6rem)]"
+            className="absolute inset-x-4 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg bottom-[calc(env(safe-area-inset-bottom)+9rem)]"
             onClick={(e) => e.stopPropagation()}
           >
             {availableCountries.map((country) => (

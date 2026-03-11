@@ -323,7 +323,7 @@ export default function Home() {
       <main className="min-h-screen bg-white text-black">
         <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center px-4 pb-[calc(env(safe-area-inset-bottom)+6.5rem)] pt-5 text-center sm:px-6 sm:pt-6">
           <section className="w-full rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm sm:p-5">
-            <h2 className="text-lg font-semibold text-gray-900">加入 1–3 張圖片，再開始鑑定</h2>
+            <h2 className="text-lg font-semibold text-gray-900">TEST 加入 1–3 張圖片，再開始鑑定</h2>
             <p className="mt-1 text-xs text-gray-500">可加入包裝、果實、產地貼紙（最多 3 張）。</p>
 
             <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-5">

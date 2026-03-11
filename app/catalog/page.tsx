@@ -381,6 +381,7 @@ export default function CatalogPage() {
   const [isSavingQuickAdd, setIsSavingQuickAdd] = useState(false);
   const [isSortPickerOpen, setIsSortPickerOpen] = useState(false);
   const [isRegionPickerOpen, setIsRegionPickerOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [quickAddError, setQuickAddError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -1534,7 +1535,8 @@ export default function CatalogPage() {
                       key={`${image.slice(0, 20)}-${index}`}
                       src={image}
                       alt={`水果圖鑑詳情圖片 ${index + 1}`}
-                      className="h-56 w-56 shrink-0 rounded-lg object-cover"
+                      className="h-56 w-56 shrink-0 cursor-zoom-in rounded-lg object-cover"
+                      onClick={() => setPreviewImage(image)}
                     />
                   ))}
                 </div>
@@ -1800,6 +1802,28 @@ export default function CatalogPage() {
               )}
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {previewImage ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90"
+          onClick={() => setPreviewImage(null)}
+        >
+          <button
+            type="button"
+            aria-label="關閉預覽"
+            onClick={() => setPreviewImage(null)}
+            className="fixed right-4 top-[calc(env(safe-area-inset-top)+1rem)] flex h-10 w-10 items-center justify-center rounded-full border border-white/40 bg-black/40 text-xl text-white"
+          >
+            ✕
+          </button>
+          <img
+            src={previewImage}
+            alt="水果圖片全螢幕預覽"
+            className="max-h-[90vh] max-w-[95vw] object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       ) : null}
 

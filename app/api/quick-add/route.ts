@@ -1,8 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
-import { jsonrepair } from "jsonrepair";
 import { normalizeCatalogCoreFields } from "@/lib/normalizer";
-import { GEMINI_MODEL, generationConfig } from "@/lib/ai-model";
 
 export const maxDuration = 60;
 
@@ -107,12 +105,10 @@ export async function POST(request: Request) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
+    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({
-      model: GEMINI_MODEL,
-      generationConfig: {
-        ...generationConfig,
-        responseMimeType: "application/json",
-      },
+      model: modelName,
+      generationConfig: { responseMimeType: "application/json" },
     });
 
     const result = await model.generateContent([
@@ -124,31 +120,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "AI 沒有回傳內容。" }, { status: 502 });
     }
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text) as QuickAddAIResult;
-    } catch (parseError) {
-      // 先嘗試自動修復不完整或格式錯誤的 JSON
-      let repaired: string | null = null;
-      try {
-        repaired = jsonrepair(text);
-        // eslint-disable-next-line no-console
-        console.warn("Gemini quick-add repaired JSON:", repaired);
-        parsed = JSON.parse(repaired) as QuickAddAIResult;
-      } catch (repairError) {
-        // 修復失敗時，紀錄原始輸出以便診斷
-        // eslint-disable-next-line no-console
-        console.error("Gemini quick-add raw output (unrepairable):", text);
-        throw repairError;
-      }
-    }
+    const parsed = JSON.parse(text);
     const normalized = normalizeQuickAddResult(parsed);
     return NextResponse.json(
       {
         ...normalized,
         input_name: inputName,
       },
-      { headers: { "X-Gemini-Model": GEMINI_MODEL } }
+      { headers: { "X-Gemini-Model": modelName } }
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

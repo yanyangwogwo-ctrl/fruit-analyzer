@@ -1,7 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
-import { jsonrepair } from "jsonrepair";
-import { GEMINI_MODEL, generationConfig } from "@/lib/ai-model";
 
 // 設定 Vercel Serverless Function 最大執行時間為 60 秒 (Hobby 方案上限)
 export const maxDuration = 60;
@@ -218,10 +216,12 @@ export async function POST(request: Request) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
+    // 動態讀取環境變數，預設使用 flash
+    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
     const model = genAI.getGenerativeModel({
-      model: GEMINI_MODEL,
+      model: modelName,
       generationConfig: {
-        ...generationConfig,
         responseMimeType: "application/json",
       },
     });
@@ -242,27 +242,10 @@ export async function POST(request: Request) {
       );
     }
 
-    let json: AnalyzeResult;
-    try {
-      json = JSON.parse(text) as AnalyzeResult;
-    } catch (parseError) {
-      // 先嘗試自動修復不完整或格式錯誤的 JSON
-      let repaired: string | null = null;
-      try {
-        repaired = jsonrepair(text);
-        // eslint-disable-next-line no-console
-        console.warn("Gemini analyze repaired JSON:", repaired);
-        json = JSON.parse(repaired) as AnalyzeResult;
-      } catch (repairError) {
-        // 修復失敗時，紀錄原始輸出以便診斷
-        // eslint-disable-next-line no-console
-        console.error("Gemini analyze raw output (unrepairable):", text);
-        throw repairError;
-      }
-    }
+    const json = JSON.parse(text);
     const normalized = normalizeAnalyzeResult(json);
     return NextResponse.json(normalized, {
-      headers: { "X-Gemini-Model": GEMINI_MODEL },
+      headers: { "X-Gemini-Model": modelName },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

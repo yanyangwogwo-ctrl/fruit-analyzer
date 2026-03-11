@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import packageJson from "../../package.json";
 import {
@@ -19,6 +20,7 @@ import {
   normalizeCatalogCoreFields,
   normalizeCategoryForGrouping,
 } from "@/lib/normalizer";
+import { getCatalogGridCols, type CatalogGridCols } from "@/lib/settings";
 
 type SortMode = "latest" | "earliest" | "highest" | "lowest";
 type QuickAddMode = "single" | "batch";
@@ -59,8 +61,13 @@ function normalizeTag(tag: string): string {
   return tag.trim().replace(/^#+/, "");
 }
 
-function getCardTitleClass(title: string): string {
+function getCardTitleClass(title: string, gridCols: CatalogGridCols): string {
   const length = Array.from(title).length;
+  if (gridCols === 4) {
+    if (length <= 8) return "line-clamp-2 text-[10px] leading-3 sm:text-[11px]";
+    if (length <= 18) return "line-clamp-2 text-[9px] leading-3 sm:text-[10px]";
+    return "line-clamp-2 text-[9px] leading-3";
+  }
   if (length <= 8) return "line-clamp-2 text-[12.5px] leading-4 sm:text-sm";
   if (length <= 18) return "line-clamp-2 text-[11px] leading-4 sm:text-[12px]";
   return "line-clamp-2 text-[10px] leading-3.5 sm:text-[11px]";
@@ -359,6 +366,7 @@ export default function CatalogPage() {
 
   const [entries, setEntries] = useState<FruitCatalogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [gridCols, setGridCols] = useState<CatalogGridCols>(3);
   const [selectedEntry, setSelectedEntry] = useState<FruitCatalogEntry | null>(null);
   const [selectedCountry, setSelectedCountry] = useState("全部");
   const [sortMode, setSortMode] = useState<SortMode>("latest");
@@ -381,6 +389,7 @@ export default function CatalogPage() {
   const [isSavingQuickAdd, setIsSavingQuickAdd] = useState(false);
   const [isSortPickerOpen, setIsSortPickerOpen] = useState(false);
   const [isRegionPickerOpen, setIsRegionPickerOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [quickAddError, setQuickAddError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -388,6 +397,7 @@ export default function CatalogPage() {
     const loadEntries = async () => {
       setIsLoading(true);
       try {
+        setGridCols(getCatalogGridCols());
         const items = await catalogDB.entries.orderBy("created_at").reverse().toArray();
         setEntries(items.map((item) => normalizeCatalogEntry(item as unknown as Record<string, unknown>)));
       } finally {
@@ -529,6 +539,14 @@ export default function CatalogPage() {
     });
     return sections;
   }, [countryFilteredEntries, sortMode]);
+
+  const gridClassName =
+    gridCols === 4
+      ? "grid grid-cols-4 gap-1 sm:grid-cols-4 sm:gap-1.5"
+      : "grid grid-cols-3 gap-1.5 sm:grid-cols-3 sm:gap-2";
+  const cardBodyClass = gridCols === 4 ? "flex h-14 flex-col justify-between p-1" : "flex h-16 flex-col justify-between px-1.5 py-1.5";
+  const starRowClass = gridCols === 4 ? "flex h-4 items-center justify-center" : "flex h-5 items-center justify-center";
+  const starSizeClass = gridCols === 4 ? "text-[10px] sm:text-[11px]" : "text-[15px]";
 
   const updateEntryInState = (updatedEntry: FruitCatalogEntry) => {
     setEntries((prev) => prev.map((entry) => (entry.id === updatedEntry.id ? updatedEntry : entry)));
@@ -922,6 +940,25 @@ export default function CatalogPage() {
     <>
       <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(210px+env(safe-area-inset-bottom))] pt-5 text-black sm:px-5 sm:pt-6">
         <div className="mx-auto w-full max-w-5xl">
+          <div className="mb-3 rounded-2xl border border-gray-200 bg-white px-4 py-3">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  已收錄 <span className="font-semibold text-gray-900">{countryFilteredEntries.length}</span> 項
+                </p>
+                <p className="mt-1 text-xs text-gray-400">
+                  {catalogMode === "want" ? "想試清單" : "已試圖鑑"}
+                </p>
+              </div>
+              <Link
+                href="/settings"
+                aria-label="設定"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+              >
+                ⚙️
+              </Link>
+            </div>
+          </div>
           {isLoading ? (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
               正在載入圖鑑⋯⋯
@@ -951,7 +988,7 @@ export default function CatalogPage() {
                     </span>
                     <span className="text-xs font-medium text-gray-400">({section.items.length})</span>
                   </h3>
-                  <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-3 sm:gap-2 lg:grid-cols-4">
+                  <div className={gridClassName}>
                     {section.items.map((entry) => {
                       const title =
                         entry.possible_variety_display || entry.fruit_category_display || "未命名水果";
@@ -974,16 +1011,16 @@ export default function CatalogPage() {
                                 className="h-full w-full object-cover"
                               />
                             </div>
-                            <div className="flex h-16 flex-col justify-between px-1.5 py-1.5">
+                            <div className={cardBodyClass}>
                               <p
-                                className={`break-words text-center font-semibold text-gray-900 ${getCardTitleClass(localizedTitle)}`}
+                                className={`break-words text-center font-semibold text-gray-900 ${getCardTitleClass(localizedTitle, gridCols)}`}
                                 title={localizedTitle}
                               >
                                 {localizedTitle}
                               </p>
-                              <div className="flex h-5 items-center justify-center">
+                              <div className={starRowClass}>
                                 {entry.rating != null ? (
-                                  <RatingStars rating={entry.rating} sizeClass="text-[15px]" />
+                                  <RatingStars rating={entry.rating} sizeClass={starSizeClass} />
                                 ) : null}
                               </div>
                             </div>
@@ -1534,7 +1571,8 @@ export default function CatalogPage() {
                       key={`${image.slice(0, 20)}-${index}`}
                       src={image}
                       alt={`水果圖鑑詳情圖片 ${index + 1}`}
-                      className="h-56 w-56 shrink-0 rounded-lg object-cover"
+                      className="h-56 w-56 shrink-0 cursor-zoom-in rounded-lg object-cover"
+                      onClick={() => setPreviewImage(image)}
                     />
                   ))}
                 </div>
@@ -1800,6 +1838,28 @@ export default function CatalogPage() {
               )}
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {previewImage ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90"
+          onClick={() => setPreviewImage(null)}
+        >
+          <button
+            type="button"
+            aria-label="關閉預覽"
+            onClick={() => setPreviewImage(null)}
+            className="fixed right-4 top-[calc(env(safe-area-inset-top)+1rem)] flex h-10 w-10 items-center justify-center rounded-full border border-white/40 bg-black/40 text-xl text-white"
+          >
+            ✕
+          </button>
+          <img
+            src={previewImage}
+            alt="水果圖片全螢幕預覽"
+            className="max-h-[90vh] max-w-[95vw] object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       ) : null}
 

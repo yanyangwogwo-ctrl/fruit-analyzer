@@ -920,7 +920,7 @@ export default function CatalogPage() {
 
   return (
     <>
-      <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(env(safe-area-inset-bottom)+8.5rem)] pt-5 text-black sm:px-5 sm:pt-6">
+      <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(210px+env(safe-area-inset-bottom))] pt-5 text-black sm:px-5 sm:pt-6">
         <div className="mx-auto w-full max-w-5xl">
           {isLoading ? (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
@@ -999,7 +999,7 @@ export default function CatalogPage() {
         </div>
       </main>
 
-      <div className="pointer-events-none fixed inset-x-0 z-20 flex justify-center bottom-[calc(env(safe-area-inset-bottom)+4.1rem)]">
+      <div className="pointer-events-none fixed inset-x-0 z-20 flex justify-center bottom-[calc(env(safe-area-inset-bottom)+5.6rem)]">
         <div className="pointer-events-auto flex w-[min(92vw,24rem)] items-center gap-2 rounded-full border border-gray-200 bg-white/95 p-1.5 shadow-sm backdrop-blur">
           <button
             type="button"
@@ -1035,7 +1035,7 @@ export default function CatalogPage() {
       {isSortPickerOpen ? (
         <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setIsSortPickerOpen(false)}>
           <div
-            className="absolute inset-x-4 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg bottom-[calc(env(safe-area-inset-bottom)+8.2rem)]"
+            className="absolute inset-x-4 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg bottom-[calc(env(safe-area-inset-bottom)+9.6rem)]"
             onClick={(e) => e.stopPropagation()}
           >
             {sortOptions.map((option) => (
@@ -1060,7 +1060,7 @@ export default function CatalogPage() {
       {isRegionPickerOpen ? (
         <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setIsRegionPickerOpen(false)}>
           <div
-            className="absolute inset-x-4 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg bottom-[calc(env(safe-area-inset-bottom)+8.2rem)]"
+            className="absolute inset-x-4 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg bottom-[calc(env(safe-area-inset-bottom)+9.6rem)]"
             onClick={(e) => e.stopPropagation()}
           >
             {availableCountries.map((country) => (

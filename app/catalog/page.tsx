@@ -954,25 +954,6 @@ export default function CatalogPage() {
     <>
       <main className="min-h-[100dvh] overflow-x-clip bg-gray-100 px-3 pb-[calc(210px+env(safe-area-inset-bottom))] pt-5 text-black sm:px-5 sm:pt-6">
         <div className="mx-auto w-full max-w-5xl">
-          <div className="mb-3 rounded-2xl border border-gray-200 bg-white px-4 py-3">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-gray-700">
-                  已收錄 <span className="font-semibold text-gray-900">{countryFilteredEntries.length}</span> 項
-                </p>
-                <p className="mt-1 text-xs text-gray-400">
-                  {catalogMode === "want" ? "想試清單" : "已試圖鑑"}
-                </p>
-              </div>
-              <Link
-                href="/settings"
-                aria-label="設定"
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
-              >
-                ⚙️
-              </Link>
-            </div>
-          </div>
           {isLoading ? (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
               正在載入圖鑑⋯⋯
@@ -1049,6 +1030,26 @@ export default function CatalogPage() {
           )}
         </div>
       </main>
+
+      <Link
+        href="/settings"
+        aria-label="設定"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+8.5rem)] right-4 z-30 flex h-[38px] w-[38px] items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-500 shadow-sm backdrop-blur transition hover:bg-white sm:right-6"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-[18px] w-[18px]"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="3.25" />
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1.03 1.56V22a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.86.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.08A1.7 1.7 0 0 0 4.64 8.9a1.7 1.7 0 0 0-.34-1.86l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.55a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 0 1 4 0v.08A1.7 1.7 0 0 0 15.06 4.64a1.7 1.7 0 0 0 1.86-.34l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.86A1.7 1.7 0 0 0 21 10.03H21a2 2 0 0 1 0 4h-.08A1.7 1.7 0 0 0 19.4 15Z" />
+        </svg>
+      </Link>
 
       <div className="pointer-events-none fixed inset-x-0 z-20 flex justify-center bottom-[calc(env(safe-area-inset-bottom)+5rem)]">
         <div className="pointer-events-auto flex w-[min(92vw,24rem)] items-center justify-center gap-2">

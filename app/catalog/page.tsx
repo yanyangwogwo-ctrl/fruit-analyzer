@@ -1000,7 +1000,7 @@ export default function CatalogPage() {
       </main>
 
       <div className="pointer-events-none fixed inset-x-0 z-20 flex justify-center bottom-[calc(env(safe-area-inset-bottom)+5.6rem)]">
-        <div className="pointer-events-auto flex w-[min(92vw,24rem)] items-center gap-2 rounded-full border border-gray-200 bg-white/95 p-1.5 shadow-sm backdrop-blur">
+        <div className="pointer-events-auto flex w-[min(92vw,24rem)] items-center justify-center gap-2">
           <button
             type="button"
             disabled={modeEntries.length === 0}
@@ -1008,14 +1008,14 @@ export default function CatalogPage() {
               setIsSortPickerOpen(true);
               setIsRegionPickerOpen(false);
             }}
-            className="h-8 flex-1 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
+            className="h-8 flex-1 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700 shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
           >
             排序: {getSortLabel(sortMode)}
           </button>
           <button
             type="button"
             onClick={openQuickAddModal}
-            className="h-8 rounded-full bg-black px-3 text-xs font-medium text-white"
+            className="h-8 rounded-full bg-black px-3 text-xs font-medium text-white shadow-sm"
           >
             +加入
           </button>
@@ -1025,7 +1025,7 @@ export default function CatalogPage() {
               setIsRegionPickerOpen(true);
               setIsSortPickerOpen(false);
             }}
-            className="h-8 flex-1 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700"
+            className="h-8 flex-1 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-700 shadow-sm"
           >
             地區: {selectedCountry}
           </button>

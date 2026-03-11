@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
 import packageJson from "../../package.json";
 import {
   catalogDB,
@@ -1844,22 +1845,38 @@ export default function CatalogPage() {
       {previewImage ? (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90"
-          onClick={() => setPreviewImage(null)}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setPreviewImage(null);
+            }
+          }}
         >
           <button
             type="button"
             aria-label="關閉預覽"
-            onClick={() => setPreviewImage(null)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setPreviewImage(null);
+            }}
             className="fixed right-4 top-[calc(env(safe-area-inset-top)+1rem)] flex h-10 w-10 items-center justify-center rounded-full border border-white/40 bg-black/40 text-xl text-white"
           >
             ✕
           </button>
-          <img
-            src={previewImage}
-            alt="水果圖片全螢幕預覽"
-            className="max-h-[90vh] max-w-[95vw] object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <div className="flex h-full w-full items-center justify-center px-2" onClick={(e) => e.stopPropagation()}>
+            <TransformWrapper minScale={1} initialScale={1} maxScale={5} doubleClick={{ disabled: true }}>
+              <TransformComponent
+                wrapperClass="!max-h-[90vh] !max-w-[95vw] !overflow-visible"
+                contentClass="!max-h-[90vh] !max-w-[95vw]"
+              >
+                <img
+                  src={previewImage}
+                  alt="水果圖片全螢幕預覽"
+                  className="max-h-[90vh] max-w-[95vw] object-contain select-none"
+                  draggable={false}
+                />
+              </TransformComponent>
+            </TransformWrapper>
+          </div>
         </div>
       ) : null}
 

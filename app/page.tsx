@@ -6,10 +6,10 @@ import { buildFruitProfileRows, normalizeAnalysisResult } from "@/lib/fruitProfi
 import { normalizeAnalysisRecordFields } from "@/lib/normalizer";
 import {
   getGuideIcon,
-  getRarityBadge,
   normalizeEnrichmentResult,
   type FruitEnrichmentResult,
 } from "@/lib/enrichment";
+import { getRarityBadge } from "@/lib/rarity";
 import {
   catalogDB,
   createCatalogEntryFromAnalysis,
@@ -571,7 +571,7 @@ export default function Home() {
                       <span
                         className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${rarityBadge.className}`}
                       >
-                        {rarityBadge.label}
+                        {rarityBadge.tier} · {rarityBadge.label}
                       </span>
                     );
                   })()}

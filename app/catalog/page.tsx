@@ -21,6 +21,8 @@ import {
   normalizeCatalogCoreFields,
   normalizeCategoryForGrouping,
 } from "@/lib/normalizer";
+import { getGuideIcon } from "@/lib/enrichment";
+import { getRarityBadge } from "@/lib/rarity";
 import { getCatalogGridCols, type CatalogGridCols } from "@/lib/settings";
 
 type SortMode = "latest" | "earliest" | "highest" | "lowest";
@@ -442,6 +444,10 @@ export default function CatalogPage() {
   }, [toastMessage]);
 
   const isAnyOverlayOpen = Boolean(selectedEntry) || isQuickAddModalOpen;
+  const selectedEnrichment = selectedEntry?.enrichment;
+  const detailSummary = selectedEnrichment?.catalog_summary || selectedEntry?.summary_zh_tw || "";
+  const detailSeason = selectedEnrichment?.season || selectedEntry?.season_months || "";
+  const detailRarityBadge = selectedEnrichment ? getRarityBadge(selectedEnrichment.rarity_hint) : null;
 
   useEffect(() => {
     if (!isAnyOverlayOpen) return;
@@ -1720,6 +1726,23 @@ export default function CatalogPage() {
                     <p className="mt-1 text-sm text-gray-500">
                       {toHongKongTerminology(selectedEntry.origin_display || "產地未標註")}
                     </p>
+                    {detailRarityBadge ? (
+                      <div className="mt-2">
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${detailRarityBadge.className}`}
+                        >
+                          {detailRarityBadge.tier} · {detailRarityBadge.label}
+                        </span>
+                      </div>
+                    ) : null}
+                    {selectedEnrichment?.market_position ? (
+                      <p className="mt-1 text-xs text-gray-500">{selectedEnrichment.market_position}</p>
+                    ) : null}
+                    {detailSummary ? (
+                      <p className="mt-3 text-sm leading-6 text-gray-700">
+                        {toHongKongTerminology(detailSummary)}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -1834,17 +1857,50 @@ export default function CatalogPage() {
                         </ul>
                       </section>
                     ) : null}
-                    {selectedEntry.season_months ? (
+                    {selectedEnrichment?.standout_sensory_traits?.length ? (
                       <section>
-                        <p className="text-xs font-medium tracking-wide text-gray-400">產季</p>
-                        <p className="mt-1 text-sm leading-6 text-gray-700">{selectedEntry.season_months}</p>
+                        <p className="mb-1 mt-4 text-sm font-bold text-gray-700">感官特點</p>
+                        <ul className="list-disc space-y-1 pl-4 text-sm leading-relaxed text-gray-800">
+                          {selectedEnrichment.standout_sensory_traits.map((item) => (
+                            <li key={item}>{toHongKongTerminology(item)}</li>
+                          ))}
+                        </ul>
                       </section>
                     ) : null}
-                    {selectedEntry.summary_zh_tw ? (
+                    {selectedEnrichment?.background_lore?.length ? (
                       <section>
-                        <p className="text-xs font-medium tracking-wide text-gray-400">摘要</p>
+                        <p className="mb-1 mt-4 text-sm font-bold text-gray-700">圖鑑故事</p>
+                        <ul className="list-disc space-y-1 pl-4 text-sm leading-relaxed text-stone-600">
+                          {selectedEnrichment.background_lore.map((item) => (
+                            <li key={item}>{toHongKongTerminology(item)}</li>
+                          ))}
+                        </ul>
+                      </section>
+                    ) : null}
+                    {selectedEnrichment?.practical_guide?.length ? (
+                      <section>
+                        <p className="mb-1 mt-4 text-sm font-bold text-gray-700">實用指南</p>
+                        <ul className="space-y-1.5 text-sm leading-relaxed text-gray-700">
+                          {selectedEnrichment.practical_guide.map((item) => (
+                            <li key={item} className="flex items-start gap-2">
+                              <span>{getGuideIcon(item)}</span>
+                              <span>{toHongKongTerminology(item)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ) : null}
+                    {detailSeason ? (
+                      <section>
+                        <p className="text-xs font-medium tracking-wide text-gray-400">產季</p>
+                        <p className="mt-1 text-sm leading-6 text-gray-700">{toHongKongTerminology(detailSeason)}</p>
+                      </section>
+                    ) : null}
+                    {selectedEnrichment?.common_regions?.length ? (
+                      <section>
+                        <p className="text-xs font-medium tracking-wide text-gray-400">常見產地</p>
                         <p className="mt-1 text-sm leading-6 text-gray-700">
-                          {toHongKongTerminology(selectedEntry.summary_zh_tw)}
+                          {selectedEnrichment.common_regions.map((item) => toHongKongTerminology(item)).join("、")}
                         </p>
                       </section>
                     ) : null}

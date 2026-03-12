@@ -19,6 +19,13 @@ export type FruitEnrichmentResult = {
   catalog_summary: string;
 };
 
+export type FruitEnrichmentPayload = {
+  fruit_category: string;
+  confirmed_variety: string;
+  confirmed_origin: string;
+  ocr_package_info: string[];
+};
+
 const RARITY_HINT_SET = new Set<string>(ENRICHMENT_RARITY_HINTS);
 
 function normalizeString(value: unknown): string {
@@ -45,38 +52,6 @@ export function normalizeEnrichmentResult(raw: unknown): FruitEnrichmentResult {
     background_lore: normalizeStringArray(obj.background_lore),
     practical_guide: normalizeStringArray(obj.practical_guide),
     catalog_summary: normalizeString(obj.catalog_summary),
-  };
-}
-
-export function getRarityBadge(rarityHint: FruitRarityHint): { label: string; className: string } {
-  if (rarityHint === "auction_grade") {
-    return {
-      label: "SSR",
-      className:
-        "border-amber-300 bg-amber-100 text-amber-900 shadow-[0_0_12px_rgba(251,191,36,0.45)]",
-    };
-  }
-  if (rarityHint === "luxury_gift") {
-    return {
-      label: "SR",
-      className: "border-rose-200 bg-rose-50 text-rose-700",
-    };
-  }
-  if (rarityHint === "premium_variety") {
-    return {
-      label: "R+",
-      className: "border-violet-200 bg-violet-50 text-violet-700",
-    };
-  }
-  if (rarityHint === "regional_specialty") {
-    return {
-      label: "R",
-      className: "border-sky-200 bg-sky-50 text-sky-700",
-    };
-  }
-  return {
-    label: "N",
-    className: "border-gray-200 bg-gray-50 text-gray-600",
   };
 }
 

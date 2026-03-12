@@ -1,17 +1,13 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
-import { normalizeEnrichmentResult } from "@/lib/enrichment";
+import {
+  normalizeEnrichmentResult,
+  type FruitEnrichmentPayload,
+} from "@/lib/enrichment";
 
 export const maxDuration = 60;
 
-type EnrichRequestPayload = {
-  fruit_category: string;
-  confirmed_variety: string;
-  confirmed_origin: string;
-  ocr_package_info: string[];
-};
-
-function parseEnrichRequestBody(raw: unknown): { payload?: EnrichRequestPayload; error?: string } {
+function parseEnrichRequestBody(raw: unknown): { payload?: FruitEnrichmentPayload; error?: string } {
   const body = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
   const strArr = (value: unknown) =>
@@ -22,7 +18,7 @@ function parseEnrichRequestBody(raw: unknown): { payload?: EnrichRequestPayload;
           .filter((item) => item.length > 0)
       : [];
 
-  const payload: EnrichRequestPayload = {
+  const payload: FruitEnrichmentPayload = {
     fruit_category: str(body.fruit_category),
     confirmed_variety: str(body.confirmed_variety),
     confirmed_origin: str(body.confirmed_origin),
@@ -41,31 +37,69 @@ function parseEnrichRequestBody(raw: unknown): { payload?: EnrichRequestPayload;
   return { payload };
 }
 
-function buildPrompt(payload: EnrichRequestPayload): string {
-  return `You are a fruit encyclopedia assistant. Use the given fruit context and return enriched structured catalog knowledge in Traditional Chinese.
+function buildPrompt(payload: FruitEnrichmentPayload): string {
+  return `ROLE:
+You are a world-class pomologist and fruit encyclopedia editor.
+Your task is to enrich an already-confirmed fruit variety entry with structured catalog knowledge.
+
+IMPORTANT:
+- The fruit variety is already confirmed by the user
+- Do NOT identify the fruit again
+- Do NOT guess a different variety
+- Do NOT produce marketing fluff
+- Be objective, elegant, and useful
 
 Input context:
 ${JSON.stringify(payload, null, 2)}
 
-Requirements:
-1) Be conservative. If uncertain, keep fields empty ("", []).
-2) Do NOT fabricate farm names, auction records, or unverifiable claims.
-3) Output must be valid JSON ONLY. No markdown.
-4) rarity_hint must be one of:
-   "mass_market" | "regional_specialty" | "premium_variety" | "luxury_gift" | "auction_grade"
-5) Keep lists concise and useful.
+ANTI-HALLUCINATION RULES:
+1) standout_sensory_traits:
+   Only include truly standout sensory traits if they are broadly known and genuinely distinctive.
+   If not, return [].
+   Do NOT force praise for ordinary mass-market fruit.
+
+2) rarity_hint:
+   MUST be exactly one of:
+   - mass_market
+   - regional_specialty
+   - premium_variety
+   - luxury_gift
+   - auction_grade
+   Do NOT invent other values.
+   Do NOT output SSR / SR / R / N.
+
+3) background_lore:
+   Only include broadly known and reasonably reliable background (such as naming origin or breeding context).
+   Otherwise return [].
+   Do NOT invent years or historical details.
+
+4) practical_guide:
+   Only include storage advice or best tasting condition.
+   Do NOT give fruit-picking advice.
+   Do NOT describe how to choose appearance.
+
+5) catalog_summary:
+   Write a concise integrated summary in Traditional Chinese.
+   Do not repeat other fields verbatim.
+   Keep it informative and catalog-friendly.
 
 Return JSON in this exact schema:
 {
   "standout_sensory_traits": [],
-  "season": "",
+  "season": "12月至翌年3月",
   "common_regions": [],
   "rarity_hint": "mass_market",
   "market_position": "",
   "background_lore": [],
   "practical_guide": [],
   "catalog_summary": ""
-}`;
+}
+
+Requirements:
+- Return ONLY valid JSON
+- No markdown
+- No code fences
+- No explanation outside JSON`;
 }
 
 export async function POST(request: Request) {
@@ -94,27 +128,44 @@ export async function POST(request: Request) {
       generationConfig: {
         temperature: 0,
         topP: 1,
+        maxOutputTokens: 768,
         responseMimeType: "application/json",
       },
     });
 
-    const result = await model.generateContent([{ text: buildPrompt(parsed.payload) }]);
-    const text = result.response.text()?.trim();
-    if (!text) {
-      return NextResponse.json({ error: "AI 模型沒有回傳結果。" }, { status: 502 });
+    let text = "";
+    try {
+      const result = await model.generateContent([{ text: buildPrompt(parsed.payload) }]);
+      text = result.response.text()?.trim() || "";
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return NextResponse.json(
+        { error: `深度圖鑑資料暫時無法取得：${message}` },
+        { status: 502 }
+      );
     }
 
-    const parsedJson = JSON.parse(text);
+    if (!text) {
+      return NextResponse.json({ error: "深度圖鑑資料暫時無法取得：模型無回應內容。" }, { status: 502 });
+    }
+
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(text);
+    } catch (err) {
+      console.error("Enrich JSON parse failed", {
+        error: err instanceof Error ? err.message : String(err),
+        rawOutput: text,
+      });
+      return NextResponse.json(
+        { error: "深度圖鑑資料暫時無法取得：AI 回傳格式錯誤。" },
+        { status: 502 }
+      );
+    }
+
     const normalized = normalizeEnrichmentResult(parsedJson);
-    return NextResponse.json(normalized, {
-      headers: { "X-Gemini-Model": modelName },
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const is429 = /429|quota|Quota/i.test(message);
-    const friendly = is429
-      ? "已超過目前免費額度或每分鐘請求上限，請稍候約一分鐘再試。"
-      : "深度圖鑑資料暫時無法取得";
-    return NextResponse.json({ error: friendly }, { status: is429 ? 429 : 502 });
+    return NextResponse.json(normalized, { headers: { "X-Gemini-Model": modelName } });
+  } catch {
+    return NextResponse.json({ error: "伺服器處理深度圖鑑資料時發生錯誤。" }, { status: 500 });
   }
 }

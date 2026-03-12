@@ -61,6 +61,19 @@ function stripMarkdownCodeFence(text: string): string {
     .trim();
 }
 
+function buildParseCandidate(rawText: string): { cleanedText: string; parseCandidate: string } {
+  const cleanedText = stripMarkdownCodeFence(rawText);
+  const firstBraceIndex = cleanedText.indexOf("{");
+  const lastBraceIndex = cleanedText.lastIndexOf("}");
+  if (firstBraceIndex >= 0 && lastBraceIndex > firstBraceIndex) {
+    return {
+      cleanedText,
+      parseCandidate: cleanedText.slice(firstBraceIndex, lastBraceIndex + 1).trim(),
+    };
+  }
+  return { cleanedText, parseCandidate: cleanedText };
+}
+
 function collectNormalizationIssues(raw: unknown): string[] {
   const issues: string[] = [];
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -214,29 +227,31 @@ export async function POST(request: Request) {
     let text = "";
     try {
       const result = await model.generateContent([{ text: buildPrompt(parsed.payload) }]);
-      text = result.response.text()?.trim() || "";
+      text = result.response.text() || "";
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error("[enrich] gemini_model_error", { modelName, message });
       return errorResponse(502, "gemini_model_error", message);
     }
 
-    console.info("[enrich] raw_gemini_text", text);
-    if (!text) {
+    console.error("Gemini enrich raw output:", text);
+    if (!text.trim()) {
       return errorResponse(502, "invalid_ai_json", "empty_ai_text");
     }
 
-    const cleanedText = stripMarkdownCodeFence(text);
+    const { cleanedText, parseCandidate } = buildParseCandidate(text);
+    console.error("Gemini enrich cleaned output:", cleanedText);
+    console.error("Gemini enrich parse candidate:", parseCandidate);
     let parsedJson: unknown;
     try {
-      parsedJson = JSON.parse(cleanedText);
-    } catch (err) {
-      console.error("[enrich] invalid_ai_json", {
-        error: err instanceof Error ? err.message : String(err),
-        rawOutput: text,
-        cleanedOutput: cleanedText,
-      });
-      return errorResponse(502, "invalid_ai_json", "json_parse_failed");
+      parsedJson = JSON.parse(parseCandidate);
+    } catch (parseError) {
+      const parseMessage = parseError instanceof Error ? parseError.message : String(parseError);
+      console.error("Gemini enrich parse error:", parseMessage);
+      console.error("Gemini enrich raw output:", text);
+      console.error("Gemini enrich cleaned output:", cleanedText);
+      console.error("Gemini enrich parse candidate:", parseCandidate);
+      return errorResponse(502, "invalid_ai_json", parseMessage || "json_parse_failed");
     }
 
     const normalizationIssues = collectNormalizationIssues(parsedJson);

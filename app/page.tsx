@@ -474,7 +474,7 @@ export default function Home() {
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-gray-900">分析結果</h2>
               {hasAnalyzed && analysisResult ? (
-                <div className="flex flex-col items-end gap-2 w-full max-w-xs">
+                <div className="flex flex-col items-end gap-2">
                   <button
                     type="button"
                     disabled={
@@ -485,7 +485,7 @@ export default function Home() {
                       hasImageChangesAfterAnalyze
                     }
                     onClick={openSaveModal}
-                    className={`min-h-10 w-full rounded-full px-4 py-2 text-sm font-medium shadow-md transition ${
+                    className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium shadow-md transition ${
                       hasImageChangesAfterAnalyze
                         ? "cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700"
                         : isCurrentSavedInSession

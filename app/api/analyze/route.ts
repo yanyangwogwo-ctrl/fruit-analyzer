@@ -22,10 +22,12 @@ Guidelines:
    - Otherwise leave possible_variety_basis and variety fields empty.
    - Never infer variety from fruit appearance alone. Never treat inferred variety as if it were directly written on the package.
    - If possible_variety_display is filled and the cultivar is reasonably known, provide variety_characteristics in Traditional Chinese only as concise bullet-style trait phrases.
-   - Prefer short horticultural/cultivar traits rather than full sentences.
-   - Format variety_characteristics as newline-separated bullet points within one string (example: "- 高甜度\\n- 香氣濃郁\\n- 果肉細緻").
+   - Focus STRICTLY on non-visual traits.
+   - ABSOLUTELY DO NOT describe the visual appearance (e.g., color, shape, size), because the user can already see the image.
+   - EXTREME FILTER: ONLY list a trait if it is a famous, unique, or defining signature of this specific cultivar.
+   - Format variety_characteristics as newline-separated bullet points within one string.
    - Keep variety_characteristics neutral and factual; avoid marketing language, avoid subjective tasting storytelling, and do not invent traits.
-   - Only include truly standout sensory traits if they are broadly known and genuinely distinctive.
+   - Only include truly standout traits if they are broadly known and genuinely distinctive.
    - If the cultivar is unknown or uncertain, set variety_characteristics to "".
 5. For display fields prefer Traditional Chinese when a stable common name exists. For origin_display use normalized names (e.g. "日本宮城縣", "韓國慶尚北道"). For possible_variety_display use common Chinese name if widely used; otherwise original language or English. Do NOT invent a Chinese translation for a variety name.
 6. confidence_level: overall confidence for the whole analysis ("high" | "medium" | "low" | "").

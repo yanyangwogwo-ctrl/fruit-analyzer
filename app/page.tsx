@@ -474,7 +474,7 @@ export default function Home() {
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-gray-900">分析結果</h2>
               {hasAnalyzed && analysisResult ? (
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-col items-end gap-2 w-full max-w-xs">
                   <button
                     type="button"
                     disabled={
@@ -485,7 +485,7 @@ export default function Home() {
                       hasImageChangesAfterAnalyze
                     }
                     onClick={openSaveModal}
-                    className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium shadow-md transition ${
+                    className={`min-h-10 w-full rounded-full px-4 py-2 text-sm font-medium shadow-md transition ${
                       hasImageChangesAfterAnalyze
                         ? "cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700"
                         : isCurrentSavedInSession
@@ -505,7 +505,7 @@ export default function Home() {
                     type="button"
                     disabled={isEnriching || !analysisResult || !rawAnalysisResult}
                     onClick={() => void handleUnlockEnrichment()}
-                    className="min-h-10 rounded-full px-4 py-2 text-sm font-medium shadow-md transition bg-black text-white hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300"
+                    className="min-h-10 w-full rounded-full border border-amber-300 bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-200 px-4 py-2 text-sm font-medium text-amber-900 shadow-[0_0_15px_rgba(251,191,36,0.35)] transition-all hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-75"
                   >
                     {isEnriching ? (
                       <span className="inline-flex items-center gap-2">

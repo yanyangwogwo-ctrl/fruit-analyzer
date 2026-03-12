@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 // 設定 Vercel Serverless Function 最大執行時間為 60 秒 (Hobby 方案上限)
 export const maxDuration = 60;
 
-const PROMPT = `You are an expert in fruit packaging. Analyze all provided images together to identify the marketed product and extract packaging information. The packaging may be from ANY country and in ANY language. Do NOT assume the fruit is Japanese or that the text is Japanese.
+const PROMPT = `You are an expert in fruit packaging. Analyze all provided images together to identify the marketed product and extract packaging information. The packaging may be from ANY country and in ANY language. 
 
 Important: Product identification is NOT OCR-only. Use BOTH (1) visible packaging text and (2) visual packaging design cues to identify the marketed product. Do NOT infer product or variety from fruit appearance alone. Product identification must rely on packaging information—either textual or design-related.
 
@@ -25,11 +25,12 @@ Guidelines:
    - Prefer short horticultural/cultivar traits (sweetness, acidity balance, aroma, flesh color, texture, distinguishing traits) rather than full sentences.
    - Format variety_characteristics as newline-separated bullet points within one string (example: "- 高甜度\\n- 香氣濃郁\\n- 果肉細緻").
    - Keep variety_characteristics neutral and factual; avoid marketing language, avoid subjective tasting storytelling, and do not invent traits.
+   - Only include truly standout sensory traits if they are broadly known and genuinely distinctive.
    - If the cultivar is unknown or uncertain, set variety_characteristics to "".
 5. For display fields prefer Traditional Chinese when a stable common name exists. For origin_display use normalized names (e.g. "日本宮城縣", "韓國慶尚北道"). For possible_variety_display use common Chinese name if widely used; otherwise original language or English. Do NOT invent a Chinese translation for a variety name.
 6. confidence_level: overall confidence for the whole analysis ("high" | "medium" | "low" | "").
 
-season_months: (knowledge-based) Typical global production season for this fruit/variety (e.g. "12月–5月"). Leave "" if uncertain. If filled, add to notes: "產季為一般典型月份，非包裝明示".
+season_months: (knowledge-based) Typical global production season for this fruit/variety (e.g. "12月–5月"). 
 
 summary_zh_tw: Write a 2-sentence professional summary in Traditional Chinese suitable for a fruit connoisseur's review post. Sentence 1: Introduce the fruit by origin, JA/brand, and variety. Sentence 2: Highlight premium indicators on the package (grade, sugar content, farming methods). Do NOT invent tasting notes; rely strictly on packaging claims.
 

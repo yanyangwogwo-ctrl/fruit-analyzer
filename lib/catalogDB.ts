@@ -1,5 +1,6 @@
 import Dexie, { type Table } from "dexie";
 import { normalizeAnalysisResult } from "@/lib/fruitProfile";
+import { normalizeEnrichmentResult, type FruitEnrichmentResult } from "@/lib/enrichment";
 import {
   normalizeAnalysisRecordFields,
   normalizeCatalogCoreFields,
@@ -35,6 +36,7 @@ export type FruitCatalogEntry = {
   tasting_note: string;
   tags: string[];
   is_edited: boolean;
+  enrichment?: FruitEnrichmentResult;
 };
 
 class FruitCatalogDB extends Dexie {
@@ -162,6 +164,10 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
   const normalizedTags = normalizeTags(raw.tags);
   const status: CatalogStatus = raw.status === "tried" ? "tried" : "want";
   const rating = normalizeRating(raw.rating);
+  const enrichment =
+    raw.enrichment && typeof raw.enrichment === "object"
+      ? normalizeEnrichmentResult(raw.enrichment)
+      : undefined;
 
   const normalizedCore = normalizeCatalogCoreFields({
     fruit_category_display:
@@ -208,6 +214,7 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
     tasting_note: str(raw.tasting_note),
     tags: normalizedTags,
     is_edited: bool(raw.is_edited),
+    enrichment,
   };
 }
 
@@ -244,6 +251,7 @@ export function createCatalogEntryFromAnalysis(input: {
   created_at?: number;
   overrides?: Partial<CatalogSaveDraft>;
   is_edited?: boolean;
+  enrichment?: FruitEnrichmentResult | null;
 }): Omit<FruitCatalogEntry, "id"> {
   const str = (value: unknown) => (typeof value === "string" ? value : "");
   const normalizedAnalysisRecord = normalizeAnalysisRecordFields(input.analysis_result);
@@ -269,6 +277,7 @@ export function createCatalogEntryFromAnalysis(input: {
     image_data: input.image_data,
   });
   const coverImage = images[0] ?? "";
+  const enrichment = input.enrichment ? normalizeEnrichmentResult(input.enrichment) : undefined;
 
   return {
     image_data: coverImage,
@@ -294,6 +303,7 @@ export function createCatalogEntryFromAnalysis(input: {
     tasting_note: input.overrides?.tasting_note ?? draftDefaults.tasting_note,
     tags,
     is_edited: input.is_edited ?? false,
+    enrichment,
   };
 }
 

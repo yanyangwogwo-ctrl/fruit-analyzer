@@ -124,7 +124,16 @@ IMPORTANT:
 - Be objective, elegant, and useful
 
 Input context:
-${JSON.stringify(payload, null, 2)}
+${JSON.stringify(payload)}
+
+LANGUAGE RULES:
+- All user-visible text fields MUST be written in Traditional Chinese used in Hong Kong.
+- Do NOT use Simplified Chinese.
+- Do NOT use English for descriptive content.
+- Keep official cultivar names, brand names, and proper nouns in their original language when there is no common Chinese name.
+- Use Hong Kong wording where appropriate (for example: 士多啤梨 rather than 草莓, unless the official product or variety name itself uses 草莓).
+- This language rule applies to:
+  standout_sensory_traits, season, common_regions, market_position, background_lore, practical_guide, catalog_summary.
 
 ANTI-HALLUCINATION RULES:
 1) standout_sensory_traits:
@@ -140,20 +149,22 @@ ANTI-HALLUCINATION RULES:
    - luxury_gift
    - auction_grade
    Do NOT invent other values.
-   Do NOT output SSR / SR / R / N.
 
 3) background_lore:
+   Limit to 0–2 items. Each item MUST be 1 short sentence maximum.
    Only include broadly known and reasonably reliable background (such as naming origin or breeding context).
    Otherwise return [].
    Do NOT invent years or historical details.
 
 4) practical_guide:
+   Limit to 0–2 items. Each item MUST be 1 short sentence maximum.
    Only include storage advice or best tasting condition.
    Do NOT give fruit-picking advice.
    Do NOT describe how to choose appearance.
 
 5) catalog_summary:
-   Write a concise integrated summary in Traditional Chinese.
+   Limit to 1–2 short sentences.
+   Write a concise integrated summary in Traditional Chinese used in Hong Kong.
    Do not repeat other fields verbatim.
    Keep it informative and catalog-friendly.
 
@@ -177,8 +188,8 @@ Requirements:
 }
 
 export async function POST(request: Request) {
-  const envModelName = (process.env.GEMINI_MODEL || "").trim();
-  const modelName = envModelName || "gemini-2.5-flash";
+  const enrichModel = (process.env.GEMINI_ENRICH_MODEL || "").trim();
+  const modelName = enrichModel || "gemini-2.5-flash";
   console.info("[enrich] gemini_model", modelName);
 
   let body: unknown;
@@ -206,7 +217,7 @@ export async function POST(request: Request) {
       generationConfig: {
         temperature: 0,
         topP: 1,
-        maxOutputTokens: 768,
+        maxOutputTokens: 2048,
         responseMimeType: "application/json",
       },
     });
@@ -214,6 +225,10 @@ export async function POST(request: Request) {
     let text = "";
     try {
       const result = await model.generateContent([{ text: buildPrompt(parsed.payload) }]);
+      const candidate = (result.response as { candidates?: Array<{ finishReason?: string }> }).candidates?.[0];
+      if (candidate?.finishReason === "MAX_TOKENS") {
+        console.error("[enrich] API output truncated due to MAX_TOKENS limit");
+      }
       text = result.response.text()?.trim() || "";
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

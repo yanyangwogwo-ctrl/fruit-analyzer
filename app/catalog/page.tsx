@@ -676,6 +676,20 @@ export default function CatalogPage() {
     setIsEditing(true);
   };
 
+  const handleCloseDetail = () => {
+    setSelectedEntry(null);
+    resetEditArtifacts();
+    setQuickTagInput("");
+    setQuickReviewInput("");
+  };
+
+  const handleCancelEdit = () => {
+    if (!selectedEntry) return;
+    resetEditArtifacts();
+    setQuickTagInput("");
+    setQuickReviewInput(selectedEntry.tasting_note ?? "");
+  };
+
   const handleSaveFullEdit = async () => {
     if (!selectedEntry || !draft || typeof selectedEntry.id !== "number") return;
     const currentImages = getEntryImages(selectedEntry);
@@ -1529,59 +1543,103 @@ export default function CatalogPage() {
 
       {selectedEntry ? (
         <div className="fixed inset-0 z-40 bg-black/45">
-          <div className="mx-auto h-[100dvh] w-full max-w-2xl overflow-hidden bg-white">
-            <div className="sticky top-0 z-20 flex justify-end gap-2 border-b border-gray-100 bg-white/95 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.25rem)] backdrop-blur">
-              <button
-                type="button"
-                aria-label="下載圖片"
-                onClick={() => handleDownloadImage(selectedEntry)}
-                className="min-h-10 min-w-10 rounded-full border border-gray-300 text-lg text-gray-700 transition hover:bg-gray-50"
-              >
-                ⬇️
-              </button>
+          <div className="relative mx-auto h-[100dvh] w-full max-w-2xl overflow-hidden bg-white">
+            <div className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-20 flex items-center gap-1.5 sm:gap-2">
               {!isEditing ? (
                 <button
                   type="button"
-                  aria-label="編輯"
-                  onClick={handleStartEdit}
-                  className="min-h-10 min-w-10 rounded-full border border-gray-300 text-lg text-gray-700 transition hover:bg-gray-50"
+                  aria-label="下載圖片"
+                  onClick={() => handleDownloadImage(selectedEntry)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white/85 text-gray-700 shadow-sm backdrop-blur transition-colors hover:bg-gray-100"
                 >
-                  ✏️
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 3v11" />
+                    <path d="m8 10 4 4 4-4" />
+                    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                  </svg>
                 </button>
               ) : (
-                <button
-                  type="button"
-                  aria-label="儲存"
-                  onClick={() => void handleSaveFullEdit()}
-                  className="min-h-10 min-w-10 rounded-full bg-black text-lg text-white transition hover:opacity-90"
-                >
-                  💾
-                </button>
+                <div className="h-10 w-10" aria-hidden="true" />
               )}
               <button
                 type="button"
-                aria-label="刪除"
-                onClick={() => void handleDeleteEntry(selectedEntry)}
-                className="min-h-10 min-w-10 rounded-full border border-red-200 text-lg text-red-600 transition hover:bg-red-50"
+                aria-label={isEditing ? "儲存編輯" : "編輯"}
+                onClick={() => {
+                  if (isEditing) {
+                    void handleSaveFullEdit();
+                  } else {
+                    handleStartEdit();
+                  }
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white/85 text-gray-700 shadow-sm backdrop-blur transition-colors hover:bg-gray-100"
               >
-                🗑️
+                {isEditing ? (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5"
+                    aria-hidden="true"
+                  >
+                    <path d="m5 12 5 5L20 7" />
+                  </svg>
+                ) : (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5"
+                    aria-hidden="true"
+                  >
+                    <path d="m3 21 3.75-.75L19.81 7.19a1.8 1.8 0 0 0 0-2.55l-.45-.45a1.8 1.8 0 0 0-2.55 0L3.75 17.25 3 21Z" />
+                    <path d="M13.5 6.5 17.5 10.5" />
+                  </svg>
+                )}
               </button>
               <button
                 type="button"
-                aria-label="關閉"
+                aria-label={isEditing ? "取消編輯" : "關閉"}
                 onClick={() => {
-                  setSelectedEntry(null);
-                  resetEditArtifacts();
-                  setQuickTagInput("");
-                  setQuickReviewInput("");
+                  if (isEditing) {
+                    handleCancelEdit();
+                  } else {
+                    handleCloseDetail();
+                  }
                 }}
-                className="min-h-10 min-w-10 rounded-full border border-gray-300 text-lg text-gray-700 transition hover:bg-gray-50"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white/85 text-gray-700 shadow-sm backdrop-blur transition-colors hover:bg-gray-100"
               >
-                ✕
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                  aria-hidden="true"
+                >
+                  <path d="m6 6 12 12" />
+                  <path d="m18 6-12 12" />
+                </svg>
               </button>
             </div>
 
-            <div className="h-[calc(100dvh-4.5rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain p-4 [-webkit-overflow-scrolling:touch] sm:p-5">
+            <div className="h-[100dvh] overflow-y-auto overscroll-contain p-4 [-webkit-overflow-scrolling:touch] sm:p-5">
               {!isEditing ? (
                 <div className="flex gap-2 overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 p-2">
                   {(getEntryImages(selectedEntry).length > 0
@@ -1907,6 +1965,16 @@ export default function CatalogPage() {
                   </div>
                 </>
               )}
+
+              <div className="mt-5 pb-4">
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteEntry(selectedEntry)}
+                  className="min-h-10 w-full rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-medium text-red-600 transition-colors hover:bg-red-100"
+                >
+                  刪除此圖鑑項目
+                </button>
+              </div>
             </div>
           </div>
         </div>

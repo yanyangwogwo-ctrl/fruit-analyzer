@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
 import packageJson from "../../package.json";
 import {
   catalogDB,
@@ -329,13 +328,6 @@ async function createThumbnailDataUrl(file: File): Promise<string> {
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
-}
-
-function detectImageExt(dataUrl: string): string {
-  if (dataUrl.startsWith("data:image/webp")) return "webp";
-  if (dataUrl.startsWith("data:image/png")) return "png";
-  if (dataUrl.startsWith("data:image/gif")) return "gif";
-  return "jpg";
 }
 
 function sortEntriesByMode(entries: FruitCatalogEntry[], sortMode: SortMode): FruitCatalogEntry[] {
@@ -717,17 +709,6 @@ export default function CatalogPage() {
       changed
     );
     resetEditArtifacts();
-  };
-
-  const handleDownloadImage = (entry: FruitCatalogEntry) => {
-    const cover = getEntryImages(entry)[0];
-    if (!cover) return;
-    const link = document.createElement("a");
-    link.href = cover;
-    link.download = `fruit-catalog-${entry.id ?? Date.now()}.${detectImageExt(cover)}`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
   };
 
   const resetQuickAddState = () => {
@@ -1545,31 +1526,6 @@ export default function CatalogPage() {
         <div className="fixed inset-0 z-40 bg-black/45">
           <div className="relative mx-auto h-[100dvh] w-full max-w-2xl overflow-hidden bg-white">
             <div className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-20 flex items-center gap-1.5 sm:gap-2">
-              {!isEditing ? (
-                <button
-                  type="button"
-                  aria-label="下載圖片"
-                  onClick={() => handleDownloadImage(selectedEntry)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white/85 text-gray-700 shadow-sm backdrop-blur transition-colors hover:bg-gray-100"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                    aria-hidden="true"
-                  >
-                    <path d="M12 3v11" />
-                    <path d="m8 10 4 4 4-4" />
-                    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-                  </svg>
-                </button>
-              ) : (
-                <div className="h-10 w-10" aria-hidden="true" />
-              )}
               <button
                 type="button"
                 aria-label={isEditing ? "儲存編輯" : "編輯"}
@@ -2000,21 +1956,12 @@ export default function CatalogPage() {
           >
             ✕
           </button>
-          <div className="flex h-full w-full items-center justify-center px-2" onClick={(e) => e.stopPropagation()}>
-            <TransformWrapper minScale={1} initialScale={1} maxScale={5} doubleClick={{ disabled: true }}>
-              <TransformComponent
-                wrapperClass="!max-h-[90vh] !max-w-[95vw] !overflow-visible"
-                contentClass="!max-h-[90vh] !max-w-[95vw]"
-              >
-                <img
-                  src={previewImage}
-                  alt="水果圖片全螢幕預覽"
-                  className="max-h-[90vh] max-w-[95vw] object-contain select-none"
-                  draggable={false}
-                />
-              </TransformComponent>
-            </TransformWrapper>
-          </div>
+          <img
+            src={previewImage}
+            alt="水果圖片全螢幕預覽"
+            className="max-h-[90vh] max-w-[95vw] object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       ) : null}
 

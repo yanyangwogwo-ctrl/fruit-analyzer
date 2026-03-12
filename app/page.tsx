@@ -256,6 +256,7 @@ export default function Home() {
         confirmed_origin: analysisResult.origin_display || "",
         ocr_package_info: ocrPackageInfo,
       };
+      console.info("[enrich] request_payload", payload);
 
       const res = await fetch("/api/enrich", {
         method: "POST",
@@ -263,12 +264,35 @@ export default function Home() {
         body: JSON.stringify(payload),
       });
       const rawText = await res.text();
-      const data = rawText ? (JSON.parse(rawText) as Record<string, unknown>) : {};
+      let data: Record<string, unknown> = {};
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText) as Record<string, unknown>;
+        } catch (err) {
+          console.error("[enrich] frontend_json_parse_failed", {
+            status: res.status,
+            error: err instanceof Error ? err.message : String(err),
+            rawText,
+          });
+        }
+      }
       if (!res.ok) {
-        throw new Error(typeof data.error === "string" ? data.error : "深度圖鑑資料暫時無法取得");
+        console.error("[enrich] request_failed", {
+          status: res.status,
+          statusText: res.statusText,
+          response: rawText,
+        });
+        const apiError =
+          typeof data.error === "string"
+            ? data.error
+            : rawText.trim() || `http_${res.status}`;
+        const detail = typeof data.detail === "string" ? data.detail : "";
+        setEnrichmentError(detail ? `${apiError}: ${detail}` : apiError);
+        return;
       }
       setEnrichmentResult(normalizeEnrichmentResult(data));
-    } catch {
+    } catch (err) {
+      console.error("[enrich] unexpected_frontend_error", err);
       setEnrichmentError("深度圖鑑資料暫時無法取得");
     } finally {
       setIsEnriching(false);

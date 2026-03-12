@@ -2,12 +2,25 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import {
   normalizeEnrichmentResult,
+  type FruitEnrichmentResult,
   type FruitEnrichmentPayload,
 } from "@/lib/enrichment";
 
 export const maxDuration = 60;
 
-function parseEnrichRequestBody(raw: unknown): { payload?: FruitEnrichmentPayload; error?: string } {
+function errorResponse(
+  status: number,
+  error: "invalid_enrichment_payload" | "gemini_model_error" | "invalid_ai_json" | "internal_enrich_error",
+  detail?: string
+) {
+  return NextResponse.json(detail ? { error, detail } : { error }, { status });
+}
+
+function parseEnrichRequestBody(raw: unknown): {
+  payload?: FruitEnrichmentPayload;
+  error?: "invalid_enrichment_payload";
+  detail?: string;
+} {
   const body = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
   const strArr = (value: unknown) =>
@@ -25,16 +38,77 @@ function parseEnrichRequestBody(raw: unknown): { payload?: FruitEnrichmentPayloa
     ocr_package_info: strArr(body.ocr_package_info),
   };
 
-  if (
-    !payload.fruit_category &&
-    !payload.confirmed_variety &&
-    !payload.confirmed_origin &&
-    payload.ocr_package_info.length === 0
-  ) {
-    return { error: "缺少可用的深度圖鑑查詢資訊。" };
+  const missingFields: string[] = [];
+  if (!payload.fruit_category) missingFields.push("fruit_category");
+  if (!payload.confirmed_variety) missingFields.push("confirmed_variety");
+  if (!payload.confirmed_origin) missingFields.push("confirmed_origin");
+  if (missingFields.length > 0) {
+    return {
+      error: "invalid_enrichment_payload",
+      detail: `missing_fields:${missingFields.join(",")}`,
+    };
   }
 
   return { payload };
+}
+
+function stripMarkdownCodeFence(text: string): string {
+  return text
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+}
+
+function collectNormalizationIssues(raw: unknown): string[] {
+  const issues: string[] = [];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return ["root:not_object"];
+  }
+  const obj = raw as Record<string, unknown>;
+  const arrayFields = ["standout_sensory_traits", "common_regions", "background_lore", "practical_guide"];
+  const stringFields = ["season", "market_position", "catalog_summary"];
+  for (const field of arrayFields) {
+    const value = obj[field];
+    if (value != null && !Array.isArray(value)) {
+      issues.push(`${field}:not_array`);
+      continue;
+    }
+    if (Array.isArray(value) && value.some((item) => typeof item !== "string")) {
+      issues.push(`${field}:non_string_item`);
+    }
+  }
+  for (const field of stringFields) {
+    const value = obj[field];
+    if (value != null && typeof value !== "string") {
+      issues.push(`${field}:not_string`);
+    }
+  }
+  const rarity = obj.rarity_hint;
+  if (
+    rarity != null &&
+    rarity !== "mass_market" &&
+    rarity !== "regional_specialty" &&
+    rarity !== "premium_variety" &&
+    rarity !== "luxury_gift" &&
+    rarity !== "auction_grade"
+  ) {
+    issues.push("rarity_hint:invalid");
+  }
+  return issues;
+}
+
+function isCompletelyUnusable(result: FruitEnrichmentResult): boolean {
+  return (
+    result.standout_sensory_traits.length === 0 &&
+    result.common_regions.length === 0 &&
+    result.background_lore.length === 0 &&
+    result.practical_guide.length === 0 &&
+    result.season.length === 0 &&
+    result.market_position.length === 0 &&
+    result.catalog_summary.length === 0
+  );
 }
 
 function buildPrompt(payload: FruitEnrichmentPayload): string {
@@ -103,26 +177,30 @@ Requirements:
 }
 
 export async function POST(request: Request) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "伺服器未設定 GEMINI_API_KEY。" }, { status: 500 });
-  }
+  const envModelName = (process.env.GEMINI_MODEL || "").trim();
+  const modelName = envModelName || "gemini-2.5-flash";
+  console.info("[enrich] gemini_model", modelName);
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "請提供有效的 JSON 請求內容。" }, { status: 400 });
+    return errorResponse(400, "invalid_enrichment_payload", "invalid_json_body");
   }
 
   const parsed = parseEnrichRequestBody(body);
   if (parsed.error || !parsed.payload) {
-    return NextResponse.json({ error: parsed.error ?? "請求資料格式錯誤。" }, { status: 400 });
+    return errorResponse(400, parsed.error ?? "invalid_enrichment_payload", parsed.detail);
+  }
+  console.info("[enrich] request_payload", parsed.payload);
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return errorResponse(500, "gemini_model_error", "missing_gemini_api_key");
   }
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({
       model: modelName,
       generationConfig: {
@@ -139,33 +217,44 @@ export async function POST(request: Request) {
       text = result.response.text()?.trim() || "";
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      return NextResponse.json(
-        { error: `深度圖鑑資料暫時無法取得：${message}` },
-        { status: 502 }
-      );
+      console.error("[enrich] gemini_model_error", { modelName, message });
+      return errorResponse(502, "gemini_model_error", message);
     }
 
+    console.info("[enrich] raw_gemini_text", text);
     if (!text) {
-      return NextResponse.json({ error: "深度圖鑑資料暫時無法取得：模型無回應內容。" }, { status: 502 });
+      return errorResponse(502, "invalid_ai_json", "empty_ai_text");
     }
 
+    const cleanedText = stripMarkdownCodeFence(text);
     let parsedJson: unknown;
     try {
-      parsedJson = JSON.parse(text);
+      parsedJson = JSON.parse(cleanedText);
     } catch (err) {
-      console.error("Enrich JSON parse failed", {
+      console.error("[enrich] invalid_ai_json", {
         error: err instanceof Error ? err.message : String(err),
         rawOutput: text,
+        cleanedOutput: cleanedText,
       });
-      return NextResponse.json(
-        { error: "深度圖鑑資料暫時無法取得：AI 回傳格式錯誤。" },
-        { status: 502 }
-      );
+      return errorResponse(502, "invalid_ai_json", "json_parse_failed");
     }
 
+    const normalizationIssues = collectNormalizationIssues(parsedJson);
+    if (normalizationIssues.length > 0) {
+      console.warn("[enrich] normalization_issues", normalizationIssues);
+    }
     const normalized = normalizeEnrichmentResult(parsedJson);
+    if (isCompletelyUnusable(normalized)) {
+      console.error("[enrich] normalized_result_unusable", {
+        rawOutput: text,
+        cleanedOutput: cleanedText,
+      });
+      return errorResponse(502, "invalid_ai_json", "normalized_result_empty");
+    }
     return NextResponse.json(normalized, { headers: { "X-Gemini-Model": modelName } });
-  } catch {
-    return NextResponse.json({ error: "伺服器處理深度圖鑑資料時發生錯誤。" }, { status: 500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[enrich] internal_enrich_error", message);
+    return errorResponse(500, "internal_enrich_error", message);
   }
 }

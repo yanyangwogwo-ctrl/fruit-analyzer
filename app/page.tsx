@@ -5,6 +5,12 @@ import packageJson from "../package.json";
 import { buildFruitProfileRows, normalizeAnalysisResult } from "@/lib/fruitProfile";
 import { normalizeAnalysisRecordFields } from "@/lib/normalizer";
 import {
+  getGuideIcon,
+  normalizeEnrichmentResult,
+  type FruitEnrichmentResult,
+} from "@/lib/enrichment";
+import { getRarityBadge } from "@/lib/rarity";
+import {
   catalogDB,
   createCatalogEntryFromAnalysis,
   createCatalogSaveDraftFromAnalysis,
@@ -148,6 +154,9 @@ export default function Home() {
   const [saveDraft, setSaveDraft] = useState<CatalogSaveDraft | null>(null);
   const [saveDraftBaseline, setSaveDraftBaseline] = useState<CatalogSaveDraft | null>(null);
   const [saveTagInput, setSaveTagInput] = useState("");
+  const [isEnriching, setIsEnriching] = useState(false);
+  const [enrichmentResult, setEnrichmentResult] = useState<FruitEnrichmentResult | null>(null);
+  const [enrichmentError, setEnrichmentError] = useState<string | null>(null);
 
   const fruitProfileRows = analysisResult ? buildFruitProfileRows(analysisResult) : [];
   const currentAnalysisSignature = useMemo(
@@ -212,6 +221,7 @@ export default function Home() {
           app_version: version,
           overrides: saveDraft,
           is_edited: isEdited,
+          enrichment: enrichmentResult ?? undefined,
         })
       );
 
@@ -225,6 +235,43 @@ export default function Home() {
       setToastMessage("加入圖鑑失敗，請稍後再試");
     } finally {
       setIsSavingCatalog(false);
+    }
+  };
+
+  const handleUnlockEnrichment = async () => {
+    if (!analysisResult || !rawAnalysisResult || isEnriching || enrichmentResult) return;
+    setIsEnriching(true);
+    setEnrichmentError(null);
+
+    try {
+      const ocrPackageInfo = Array.isArray(rawAnalysisResult.detected_text_lines)
+        ? rawAnalysisResult.detected_text_lines.filter(
+            (item): item is string => typeof item === "string" && item.trim().length > 0
+          )
+        : [];
+      const payload = {
+        fruit_category: analysisResult.fruit_category_display,
+        confirmed_variety:
+          analysisResult.possible_variety_display || analysisResult.possible_variety_original || "",
+        confirmed_origin: analysisResult.origin_display || "",
+        ocr_package_info: ocrPackageInfo,
+      };
+
+      const res = await fetch("/api/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const rawText = await res.text();
+      const data = rawText ? (JSON.parse(rawText) as Record<string, unknown>) : {};
+      if (!res.ok) {
+        throw new Error(typeof data.error === "string" ? data.error : "深度圖鑑資料暫時無法取得");
+      }
+      setEnrichmentResult(normalizeEnrichmentResult(data));
+    } catch {
+      setEnrichmentError("深度圖鑑資料暫時無法取得");
+    } finally {
+      setIsEnriching(false);
     }
   };
 
@@ -268,6 +315,9 @@ export default function Home() {
     setAnalysisError(null);
     setHasAnalyzed(false);
     setIsAnalyzing(true);
+    setEnrichmentResult(null);
+    setEnrichmentError(null);
+    setIsEnriching(false);
 
     try {
       const res = await fetch("/api/analyze", {
@@ -413,6 +463,33 @@ export default function Home() {
               ) : null}
             </div>
 
+            {hasAnalyzed && analysisResult ? (
+              <div className="mt-3">
+                {enrichmentResult ? (
+                  <div className="w-full rounded-full border border-amber-200 bg-amber-50 py-3 text-center text-sm font-bold text-amber-700 sm:py-4">
+                    ✓ 已解鎖深度圖鑑
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isEnriching}
+                    onClick={() => void handleUnlockEnrichment()}
+                    className="w-full rounded-full border border-amber-300 bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-200 py-3 font-bold text-amber-900 shadow-[0_0_15px_rgba(251,191,36,0.35)] transition-all hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-75 sm:py-4"
+                  >
+                    {isEnriching ? (
+                      <span className="inline-flex items-center gap-2">
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-amber-900/35 border-t-amber-900" />
+                        正在檢索百科資料...
+                      </span>
+                    ) : (
+                      "✨ 解鎖深度圖鑑"
+                    )}
+                  </button>
+                )}
+                {enrichmentError ? <p className="mt-2 text-xs text-red-600">{enrichmentError}</p> : null}
+              </div>
+            ) : null}
+
             {analysisImages.length > 0 ? (
               <div className="mt-3">
                 <p className="text-xs text-gray-500">本次鑑定圖片</p>
@@ -483,6 +560,86 @@ export default function Home() {
                 </div>
               )}
             </div>
+
+            {hasAnalyzed && analysisResult && enrichmentResult ? (
+              <div className="mt-4 rounded-2xl border border-amber-100 bg-gradient-to-b from-amber-50 to-white p-4 shadow-sm sm:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold text-amber-900">✨ 深度圖鑑資料</h3>
+                  {(() => {
+                    const rarityBadge = getRarityBadge(enrichmentResult.rarity_hint);
+                    return (
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${rarityBadge.className}`}
+                      >
+                        {rarityBadge.tier} · {rarityBadge.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                {enrichmentResult.catalog_summary ? (
+                  <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700">
+                    {enrichmentResult.catalog_summary}
+                  </p>
+                ) : null}
+
+                {enrichmentResult.market_position ? (
+                  <p className="mt-2 text-xs text-gray-500">{enrichmentResult.market_position}</p>
+                ) : null}
+
+                {enrichmentResult.standout_sensory_traits.length > 0 ? (
+                  <section className="mt-4">
+                    <p className="text-xs font-medium tracking-wide text-gray-400">感官特點</p>
+                    <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-800">
+                      {enrichmentResult.standout_sensory_traits.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+
+                {enrichmentResult.background_lore.length > 0 ? (
+                  <section className="mt-4">
+                    <p className="text-xs font-medium tracking-wide text-gray-400">圖鑑故事</p>
+                    <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-stone-600">
+                      {enrichmentResult.background_lore.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+
+                {enrichmentResult.practical_guide.length > 0 ? (
+                  <section className="mt-4">
+                    <p className="text-xs font-medium tracking-wide text-gray-400">實用指南</p>
+                    <ul className="mt-2 space-y-1.5 text-sm text-gray-700">
+                      {enrichmentResult.practical_guide.map((item) => (
+                        <li key={item} className="flex items-start gap-2">
+                          <span>{getGuideIcon(item)}</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+
+                {enrichmentResult.season ? (
+                  <section className="mt-4">
+                    <p className="text-xs font-medium tracking-wide text-gray-400">產季</p>
+                    <p className="mt-1 text-sm text-gray-700">{enrichmentResult.season}</p>
+                  </section>
+                ) : null}
+
+                {enrichmentResult.common_regions.length > 0 ? (
+                  <section className="mt-4">
+                    <p className="text-xs font-medium tracking-wide text-gray-400">常見產地</p>
+                    <p className="mt-1 text-sm text-gray-700">
+                      {enrichmentResult.common_regions.join("、")}
+                    </p>
+                  </section>
+                ) : null}
+              </div>
+            ) : null}
           </section>
         </div>
       </main>

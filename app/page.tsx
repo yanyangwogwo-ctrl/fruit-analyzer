@@ -545,13 +545,8 @@ export default function Home() {
                 </div>
               ) : hasAnalyzed && analysisResult ? (
                 <div className="rounded-2xl border border-gray-200 bg-white px-5 py-6 shadow-sm sm:px-6">
-                  {analysisResult.summary_zh_tw ? (
-                    <p className="text-[15px] leading-7 text-gray-700 sm:text-base">
-                      {analysisResult.summary_zh_tw}
-                    </p>
-                  ) : null}
                   {fruitProfileRows.length > 0 ? (
-                    <dl className={`${analysisResult.summary_zh_tw ? "mt-5" : ""} divide-y divide-gray-100`}>
+                    <dl className="divide-y divide-gray-100">
                       {fruitProfileRows.map((row) => (
                         <div
                           key={row.label}
@@ -573,9 +568,7 @@ export default function Home() {
                       ))}
                     </dl>
                   ) : (
-                    <p className={`${analysisResult.summary_zh_tw ? "mt-4" : ""} text-sm text-gray-500`}>
-                      目前未擷取到可展示的水果資訊。
-                    </p>
+                    <p className="text-sm text-gray-500">目前未擷取到可展示的水果資訊。</p>
                   )}
                 </div>
               ) : (

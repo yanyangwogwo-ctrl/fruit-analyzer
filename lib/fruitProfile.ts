@@ -13,8 +13,6 @@ export type AnalysisResult = {
   brand_or_farm_display: string;
   grade_display: string;
   season_months: string;
-  summary_zh_tw: string;
-  notes: string;
   detected_text_lines: string[];
 };
 
@@ -39,8 +37,6 @@ export function normalizeAnalysisResult(data: Record<string, unknown>): Analysis
     brand_or_farm_display: str(normalizedInput.brand_or_farm_display),
     grade_display: str(normalizedInput.grade_display),
     season_months: str(normalizedInput.season_months),
-    summary_zh_tw: str(normalizedInput.summary_zh_tw),
-    notes: str(normalizedInput.notes),
     detected_text_lines: arr(normalizedInput.detected_text_lines),
   };
 }
@@ -83,10 +79,9 @@ export function buildFruitProfileRows(result: AnalysisResult): FruitProfileRow[]
       value: result.variety_characteristics,
       bulletItems: varietyCharacteristicsItems,
     },
-    { label: "產地", value: result.origin_display },
     { label: "品牌 / 農園", value: result.brand_or_farm_display },
+    { label: "產地", value: result.origin_display },
     { label: "產季", value: result.season_months },
-    { label: "備註", value: result.notes },
   ];
 
   return rows.filter((row) => row.value.trim().length > 0);

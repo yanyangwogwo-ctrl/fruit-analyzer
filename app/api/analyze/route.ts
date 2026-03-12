@@ -22,7 +22,7 @@ Guidelines:
    - Otherwise leave possible_variety_basis and variety fields empty.
    - Never infer variety from fruit appearance alone. Never treat inferred variety as if it were directly written on the package.
    - If possible_variety_display is filled and the cultivar is reasonably known, provide variety_characteristics in Traditional Chinese only as concise bullet-style trait phrases.
-   - Prefer short horticultural/cultivar traits (sweetness, acidity balance, aroma, flesh color, texture, distinguishing traits) rather than full sentences.
+   - Prefer short horticultural/cultivar traits rather than full sentences.
    - Format variety_characteristics as newline-separated bullet points within one string (example: "- 高甜度\\n- 香氣濃郁\\n- 果肉細緻").
    - Keep variety_characteristics neutral and factual; avoid marketing language, avoid subjective tasting storytelling, and do not invent traits.
    - Only include truly standout sensory traits if they are broadly known and genuinely distinctive.
@@ -31,10 +31,6 @@ Guidelines:
 6. confidence_level: overall confidence for the whole analysis ("high" | "medium" | "low" | "").
 
 season_months: (knowledge-based) Typical global production season for this fruit/variety (e.g. "12月–5月"). 
-
-summary_zh_tw: Write a 2-sentence professional summary in Traditional Chinese suitable for a fruit connoisseur's review post. Sentence 1: Introduce the fruit by origin, JA/brand, and variety. Sentence 2: Highlight premium indicators on the package (grade, sugar content, farming methods). Do NOT invent tasting notes; rely strictly on packaging claims.
-
-notes: Use for season disclaimer and other uncertainties. Leave "" if nothing to add.
 
 Leave any field as an empty string "" or empty array [] if not found or not applicable.
 
@@ -52,8 +48,6 @@ Respond with ONLY a valid JSON object in this exact shape:
   "brand_or_farm_display": "",
   "grade_display": "",
   "season_months": "",
-  "summary_zh_tw": "",
-  "notes": "",
   "confidence_level": "",
   "detected_text_lines": []
 }`;

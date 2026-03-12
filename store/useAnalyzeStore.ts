@@ -1,0 +1,58 @@
+import { create } from "zustand";
+import type { AnalysisResult } from "@/lib/fruitProfile";
+import type { FruitEnrichmentResult } from "@/lib/enrichment";
+
+type AnalyzeDraftState = {
+  images: string[];
+  analyzedImages: string[];
+  stage1Result: AnalysisResult | null;
+  rawStage1Result: Record<string, unknown> | null;
+  analysisError: string | null;
+  enrichmentResult: FruitEnrichmentResult | null;
+  enrichmentError: string | null;
+  isAnalyzing: boolean;
+  isEnriching: boolean;
+  hasAnalyzed: boolean;
+  setImages: (images: string[]) => void;
+  setAnalyzedImages: (images: string[]) => void;
+  setStage1Result: (result: AnalysisResult | null, raw?: Record<string, unknown> | null) => void;
+  setAnalysisError: (error: string | null) => void;
+  setEnrichmentResult: (result: FruitEnrichmentResult | null) => void;
+  setEnrichmentError: (error: string | null) => void;
+  setIsAnalyzing: (value: boolean) => void;
+  setIsEnriching: (value: boolean) => void;
+  setHasAnalyzed: (value: boolean) => void;
+  clearDraft: () => void;
+};
+
+const initialState = {
+  images: [] as string[],
+  analyzedImages: [] as string[],
+  stage1Result: null as AnalysisResult | null,
+  rawStage1Result: null as Record<string, unknown> | null,
+  analysisError: null as string | null,
+  enrichmentResult: null as FruitEnrichmentResult | null,
+  enrichmentError: null as string | null,
+  isAnalyzing: false,
+  isEnriching: false,
+  hasAnalyzed: false,
+};
+
+export const useAnalyzeStore = create<AnalyzeDraftState>()((set) => ({
+  ...initialState,
+  setImages: (images) => set({ images }),
+  setAnalyzedImages: (images) => set({ analyzedImages: images }),
+  setStage1Result: (result, raw) =>
+    set({
+      stage1Result: result,
+      rawStage1Result: typeof raw === "object" || raw === null ? (raw as Record<string, unknown> | null) : null,
+    }),
+  setAnalysisError: (analysisError) => set({ analysisError }),
+  setEnrichmentResult: (enrichmentResult) => set({ enrichmentResult }),
+  setEnrichmentError: (enrichmentError) => set({ enrichmentError }),
+  setIsAnalyzing: (isAnalyzing) => set({ isAnalyzing }),
+  setIsEnriching: (isEnriching) => set({ isEnriching }),
+  setHasAnalyzed: (hasAnalyzed) => set({ hasAnalyzed }),
+  clearDraft: () => set({ ...initialState }),
+}));
+

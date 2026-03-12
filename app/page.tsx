@@ -18,6 +18,7 @@ import {
   type CatalogSaveDraft,
 } from "@/lib/catalogDB";
 import type { AnalysisResult } from "@/lib/fruitProfile";
+import { useAnalyzeStore } from "@/store/useAnalyzeStore";
 
 async function compressImageToDataUrl(file: File): Promise<string> {
   const objectUrl = URL.createObjectURL(file);
@@ -139,14 +140,30 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resultSectionRef = useRef<HTMLElement | null>(null);
 
-  const [stagedImages, setStagedImages] = useState<string[]>([]);
-  const [analysisImages, setAnalysisImages] = useState<string[]>([]);
-  const [hasAnalyzed, setHasAnalyzed] = useState(false);
+  const {
+    images: stagedImages,
+    analyzedImages: analysisImages,
+    stage1Result: analysisResult,
+    rawStage1Result: rawAnalysisResult,
+    analysisError,
+    enrichmentResult,
+    enrichmentError,
+    isAnalyzing,
+    isEnriching,
+    hasAnalyzed,
+    setImages,
+    setAnalyzedImages,
+    setStage1Result,
+    setAnalysisError,
+    setEnrichmentResult,
+    setEnrichmentError,
+    setIsAnalyzing,
+    setIsEnriching,
+    setHasAnalyzed,
+    clearDraft,
+  } = useAnalyzeStore();
+
   const [isCompressing, setIsCompressing] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [rawAnalysisResult, setRawAnalysisResult] = useState<Record<string, unknown> | null>(null);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isSavingCatalog, setIsSavingCatalog] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [sessionSavedSignatures, setSessionSavedSignatures] = useState<Set<string>>(() => new Set());
@@ -154,9 +171,6 @@ export default function Home() {
   const [saveDraft, setSaveDraft] = useState<CatalogSaveDraft | null>(null);
   const [saveDraftBaseline, setSaveDraftBaseline] = useState<CatalogSaveDraft | null>(null);
   const [saveTagInput, setSaveTagInput] = useState("");
-  const [isEnriching, setIsEnriching] = useState(false);
-  const [enrichmentResult, setEnrichmentResult] = useState<FruitEnrichmentResult | null>(null);
-  const [enrichmentError, setEnrichmentError] = useState<string | null>(null);
 
   const fruitProfileRows = analysisResult ? buildFruitProfileRows(analysisResult) : [];
   const currentAnalysisSignature = useMemo(
@@ -231,6 +245,7 @@ export default function Home() {
       setSaveDraft(null);
       setSaveDraftBaseline(null);
       setSaveTagInput("");
+      clearDraft();
     } catch {
       setToastMessage("加入圖鑑失敗，請稍後再試");
     } finally {
@@ -316,7 +331,7 @@ export default function Home() {
       for (const file of files.slice(0, availableSlots)) {
         compressed.push(await compressImageToDataUrl(file));
       }
-      setStagedImages((prev) => [...prev, ...compressed].slice(0, 3));
+      setImages([...stagedImages, ...compressed].slice(0, 3));
     } catch {
       setToastMessage("圖片處理失敗，請再試一次");
     } finally {
@@ -325,7 +340,7 @@ export default function Home() {
   };
 
   const handleRemoveImage = (index: number) => {
-    setStagedImages((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+    setImages(stagedImages.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const handleAnalyze = async () => {
@@ -334,8 +349,7 @@ export default function Home() {
       return;
     }
 
-    setAnalysisResult(null);
-    setRawAnalysisResult(null);
+    setStage1Result(null, null);
     setAnalysisError(null);
     setHasAnalyzed(false);
     setIsAnalyzing(true);
@@ -366,9 +380,8 @@ export default function Home() {
       }
 
       const normalizedRecord = normalizeAnalysisRecordFields(data);
-      setAnalysisResult(normalizeAnalysisResult(normalizedRecord));
-      setRawAnalysisResult(normalizedRecord);
-      setAnalysisImages([...stagedImages]);
+      setStage1Result(normalizeAnalysisResult(normalizedRecord) as AnalysisResult, normalizedRecord);
+      setAnalyzedImages([...stagedImages]);
       setHasAnalyzed(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "網路或伺服器錯誤";
@@ -397,8 +410,25 @@ export default function Home() {
       <main className="min-h-screen bg-white text-black">
         <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center px-4 pb-[calc(env(safe-area-inset-bottom)+6.5rem)] pt-5 text-center sm:px-6 sm:pt-6">
           <section className="w-full rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm sm:p-5">
-            <h2 className="text-lg font-semibold text-gray-900">加入 1–3 張圖片，再開始鑑定</h2>
-            <p className="mt-1 text-xs text-gray-500">可加入包裝、果實、產地貼紙（最多 3 張）。</p>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">加入 1–3 張圖片，再開始鑑定</h2>
+                <p className="mt-1 text-xs text-gray-500">可加入包裝、果實、產地貼紙（最多 3 張）。</p>
+              </div>
+              {((stagedImages.length > 0 || analysisResult || analysisError || enrichmentResult || enrichmentError) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearDraft();
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                  className="text-sm text-gray-500 hover:text-gray-800 transition-colors"
+                >
+                  全部清空
+                </button>
+              )) ||
+                null}
+            </div>
 
             <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-5">
               {stagedImages.map((image, index) => (
@@ -417,26 +447,13 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="aspect-square rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500"
+                  className="aspect-square rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                 >
                   +
                 </button>
               ) : null}
             </div>
-
-            <p className="mt-2 text-xs text-gray-500">
-              已加入 {stagedImages.length} / 3 張
-              {isCompressing ? " · 壓縮中⋯⋯" : ""}
-            </p>
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isCompressing || stagedImages.length >= 3}
-                className="min-h-10 rounded-lg border border-gray-300 px-4 text-sm text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-100"
-              >
-                新增圖片
-              </button>
+            <div className="mt-3 flex gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => void handleAnalyze()}
@@ -537,7 +554,7 @@ export default function Home() {
                 </div>
               ) : isAnalyzing ? (
                 <div className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50 px-4 py-6 text-sm text-emerald-800">
-                  Analyzing…
+                  分析中...
                 </div>
               ) : hasAnalyzed && analysisError ? (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-sm text-red-800">

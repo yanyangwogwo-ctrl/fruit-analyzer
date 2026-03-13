@@ -18,6 +18,7 @@ import {
   type CatalogSaveDraft,
 } from "@/lib/catalogDB";
 import type { AnalysisResult } from "@/lib/fruitProfile";
+import { mergeAnalyzeAndEnrich } from "@/lib/utils/mergeCatalogData";
 import { useAnalyzeStore } from "@/store/useAnalyzeStore";
 
 async function compressImageToDataUrl(file: File): Promise<string> {
@@ -110,6 +111,212 @@ function RatingInput({
   );
 }
 
+function InlineEditableAnalysisField({
+  field,
+  value,
+}: {
+  field: "possible_variety_display" | "brand_or_farm_display" | "origin_display";
+  value: string;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const { updateStage1Field } = useAnalyzeStore();
+
+  const safeValue = value ?? "";
+
+  // keep local draft in sync when external value changes and we're not editing
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (!isEditing) {
+      setDraft(safeValue);
+    }
+  }, [safeValue, isEditing]);
+
+  const startEdit = () => {
+    setDraft(safeValue);
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setDraft(safeValue);
+    setIsEditing(false);
+  };
+
+  const confirmEdit = () => {
+    const next = draft.trim();
+    if (!next) return;
+    updateStage1Field(field, next);
+    setIsEditing(false);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {isEditing ? (
+        <>
+          <input
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                confirmEdit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancelEdit();
+              }
+            }}
+            className="min-h-7 flex-1 border-b border-gray-300 bg-transparent px-1 text-sm text-gray-900 focus:border-gray-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={confirmEdit}
+            disabled={!draft.trim()}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-300 bg-emerald-50 text-[11px] text-emerald-700 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-300"
+            aria-label="確認編輯"
+          >
+            ✓
+          </button>
+          <button
+            type="button"
+            onClick={cancelEdit}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-200 bg-white text-[11px] text-gray-500"
+            aria-label="取消編輯"
+          >
+            ×
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="flex-1 truncate text-sm font-semibold text-gray-900">
+            {safeValue || <span className="text-gray-400">未填寫</span>}
+          </span>
+          <button
+            type="button"
+            onClick={startEdit}
+            className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-200 text-[10px] text-gray-400 hover:border-gray-300 hover:text-gray-600"
+            aria-label="編輯"
+          >
+            ✎
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function DeepCatalogCard({ merged }: { merged: Record<string, unknown> }) {
+  const enrichment = merged.enrichment as import("@/lib/enrichment").FruitEnrichmentResult | undefined;
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  const title =
+    str(merged.possible_variety_display) ||
+    str(merged.fruit_category_display) ||
+    "深度圖鑑";
+  const fruit_category = str(merged.fruit_category_display);
+  const possible_variety_display = str(merged.possible_variety_display);
+  const origin_display = str(merged.origin_display);
+  const brand_or_farm_display = str(merged.brand_or_farm_display);
+  const season = enrichment?.season ?? str(merged.season_months) ?? "";
+  const catalog_summary = enrichment?.catalog_summary ?? "";
+  const market_position = enrichment?.market_position ?? "";
+  const standout_sensory_traits = enrichment?.standout_sensory_traits ?? [];
+  const background_lore = enrichment?.background_lore ?? [];
+  const practical_guide = enrichment?.practical_guide ?? [];
+  const common_regions = enrichment?.common_regions ?? [];
+  const rarity_hint = enrichment?.rarity_hint ?? "mass_market";
+  const rarityBadge = getRarityBadge(rarity_hint);
+
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50 via-yellow-50/80 to-white p-4 shadow-[0_0_20px_rgba(251,191,36,0.15)] sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-base font-semibold text-amber-900">{title}</h3>
+        <span
+          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${rarityBadge.className}`}
+        >
+          {rarityBadge.tier} · {rarityBadge.label}
+        </span>
+      </div>
+      {catalog_summary ? (
+        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">{catalog_summary}</p>
+      ) : null}
+      {market_position ? (
+        <p className="mt-2 text-xs text-gray-500">{market_position}</p>
+      ) : null}
+      <dl className="mt-4 space-y-2 border-t border-amber-100 pt-4">
+        {fruit_category ? (
+          <div className="grid grid-cols-[5rem_1fr] gap-x-3 text-sm">
+            <dt className="text-gray-500">水果類別</dt>
+            <dd className="font-medium text-gray-900">{fruit_category}</dd>
+          </div>
+        ) : null}
+        {possible_variety_display ? (
+          <div className="grid grid-cols-[5rem_1fr] gap-x-3 text-sm">
+            <dt className="text-gray-500">推定品種</dt>
+            <dd className="font-medium text-gray-900">{possible_variety_display}</dd>
+          </div>
+        ) : null}
+        {origin_display ? (
+          <div className="grid grid-cols-[5rem_1fr] gap-x-3 text-sm">
+            <dt className="text-gray-500">產地</dt>
+            <dd className="font-medium text-gray-900">{origin_display}</dd>
+          </div>
+        ) : null}
+        {brand_or_farm_display ? (
+          <div className="grid grid-cols-[5rem_1fr] gap-x-3 text-sm">
+            <dt className="text-gray-500">品牌／農園</dt>
+            <dd className="font-medium text-gray-900">{brand_or_farm_display}</dd>
+          </div>
+        ) : null}
+        {season ? (
+          <div className="grid grid-cols-[5rem_1fr] gap-x-3 text-sm">
+            <dt className="text-gray-500">產季</dt>
+            <dd className="font-medium text-gray-900">{season}</dd>
+          </div>
+        ) : null}
+      </dl>
+      {standout_sensory_traits.length > 0 ? (
+        <section className="mt-4">
+          <p className="text-xs font-medium tracking-wide text-gray-500">感官特點</p>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-800">
+            {standout_sensory_traits.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {background_lore.length > 0 ? (
+        <section className="mt-4">
+          <p className="text-xs font-medium tracking-wide text-gray-500">圖鑑故事</p>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-stone-600">
+            {background_lore.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {practical_guide.length > 0 ? (
+        <section className="mt-4">
+          <p className="text-xs font-medium tracking-wide text-gray-500">實用指南</p>
+          <ul className="mt-2 space-y-1.5 text-sm text-gray-700">
+            {practical_guide.map((item) => (
+              <li key={item} className="flex items-start gap-2">
+                <span>{getGuideIcon(item)}</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {common_regions.length > 0 ? (
+        <section className="mt-4">
+          <p className="text-xs font-medium tracking-wide text-gray-500">常見產地</p>
+          <p className="mt-1 text-sm text-gray-700">{common_regions.join("、")}</p>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
 function hasSaveDraftChanged(
   baseline: CatalogSaveDraft | null,
   current: CatalogSaveDraft | null
@@ -146,6 +353,8 @@ export default function Home() {
     isAnalyzing,
     isEnriching,
     hasAnalyzed,
+    resultMode,
+    finalCatalogData,
     setImages,
     setAnalyzedImages,
     setStage1Result,
@@ -155,6 +364,8 @@ export default function Home() {
     setIsAnalyzing,
     setIsEnriching,
     setHasAnalyzed,
+    setResultMode,
+    setFinalCatalogData,
     clearDraft,
   } = useAnalyzeStore();
 
@@ -167,9 +378,16 @@ export default function Home() {
   const [saveDraftBaseline, setSaveDraftBaseline] = useState<CatalogSaveDraft | null>(null);
 
   const fruitProfileRows = analysisResult ? buildFruitProfileRows(analysisResult) : [];
+  const rawAnalysisForSignature = useMemo(() => {
+    if (resultMode === "deep" && finalCatalogData) {
+      const { enrichment, ...rest } = finalCatalogData;
+      return Object.keys(rest).length > 0 ? (rest as Record<string, unknown>) : null;
+    }
+    return rawAnalysisResult;
+  }, [resultMode, finalCatalogData, rawAnalysisResult]);
   const currentAnalysisSignature = useMemo(
-    () => (rawAnalysisResult ? serializeAnalysisResult(rawAnalysisResult) : ""),
-    [rawAnalysisResult]
+    () => (rawAnalysisForSignature ? serializeAnalysisResult(rawAnalysisForSignature) : ""),
+    [rawAnalysisForSignature]
   );
   const isCurrentSavedInSession =
     currentAnalysisSignature.length > 0 && sessionSavedSignatures.has(currentAnalysisSignature);
@@ -189,18 +407,36 @@ export default function Home() {
   }, [analysisError, analysisResult, hasAnalyzed, isAnalyzing, isCompressing]);
 
   const openSaveModal = () => {
-    if (!rawAnalysisResult || !analysisResult || analysisImages.length === 0) return;
+    const effectiveRaw =
+      resultMode === "deep" && finalCatalogData
+        ? (() => {
+            const { enrichment, ...rest } = finalCatalogData;
+            return Object.keys(rest).length > 0 ? (rest as Record<string, unknown>) : null;
+          })()
+        : rawAnalysisResult;
+    if (!effectiveRaw || !analysisResult || analysisImages.length === 0) return;
     if (hasImageChangesAfterAnalyze) return;
-    const draft = createCatalogSaveDraftFromAnalysis(rawAnalysisResult);
+    const draft = createCatalogSaveDraftFromAnalysis(effectiveRaw);
     setSaveDraft(draft);
     setSaveDraftBaseline(draft);
     setIsSaveModalOpen(true);
   };
 
   const handleConfirmCatalogSave = async () => {
-    if (!rawAnalysisResult || !analysisResult || !saveDraft || analysisImages.length === 0) return;
+    const effectiveRaw =
+      resultMode === "deep" && finalCatalogData
+        ? (() => {
+            const { enrichment, ...rest } = finalCatalogData;
+            return Object.keys(rest).length > 0 ? (rest as Record<string, unknown>) : null;
+          })()
+        : rawAnalysisResult;
+    const effectiveEnrichment =
+      resultMode === "deep" && finalCatalogData && finalCatalogData.enrichment
+        ? (finalCatalogData.enrichment as import("@/lib/enrichment").FruitEnrichmentResult)
+        : enrichmentResult;
+    if (!effectiveRaw || !analysisResult || !saveDraft || analysisImages.length === 0) return;
     if (hasImageChangesAfterAnalyze) return;
-    const analysisSignature = serializeAnalysisResult(rawAnalysisResult);
+    const analysisSignature = serializeAnalysisResult(effectiveRaw);
     if (sessionSavedSignatures.has(analysisSignature)) return;
 
     setIsSavingCatalog(true);
@@ -223,11 +459,11 @@ export default function Home() {
       await catalogDB.entries.add(
         createCatalogEntryFromAnalysis({
           images: analysisImages,
-          analysis_result: rawAnalysisResult,
+          analysis_result: effectiveRaw,
           app_version: version,
           overrides: saveDraft,
           is_edited: isEdited,
-          enrichment: enrichmentResult ?? undefined,
+          enrichment: effectiveEnrichment ?? undefined,
         })
       );
 
@@ -245,7 +481,7 @@ export default function Home() {
   };
 
   const handleUnlockEnrichment = async () => {
-    if (!analysisResult || !rawAnalysisResult || isEnriching || enrichmentResult) return;
+    if (!analysisResult || !rawAnalysisResult || isEnriching) return;
     setIsEnriching(true);
     setEnrichmentError(null);
 
@@ -262,12 +498,29 @@ export default function Home() {
         confirmed_origin: analysisResult.origin_display || "",
         ocr_package_info: ocrPackageInfo,
       };
-      console.info("[enrich] request_payload", payload);
+      const confirmedFacts: string[] = [];
+      const varietyFact =
+        analysisResult.possible_variety_display.trim() ||
+        analysisResult.possible_variety_original.trim() ||
+        "";
+      if (varietyFact) {
+        confirmedFacts.push(`推定品種: ${varietyFact}`);
+      }
+      if (analysisResult.brand_or_farm_display.trim()) {
+        confirmedFacts.push(`品牌／農園: ${analysisResult.brand_or_farm_display.trim()}`);
+      }
+      if (analysisResult.origin_display.trim()) {
+        confirmedFacts.push(`產地: ${analysisResult.origin_display.trim()}`);
+      }
+      console.info("[enrich] request_payload", payload, { confirmedFacts });
 
       const res = await fetch("/api/enrich", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          confirmed_facts: confirmedFacts,
+        }),
       });
       const rawText = await res.text();
       let data: Record<string, unknown> = {};
@@ -296,7 +549,11 @@ export default function Home() {
         setEnrichmentError(detail ? `${apiError}: ${detail}` : apiError);
         return;
       }
-      setEnrichmentResult(normalizeEnrichmentResult(data));
+      const normalizedEnrichment = normalizeEnrichmentResult(data);
+      setEnrichmentResult(normalizedEnrichment);
+      const merged = mergeAnalyzeAndEnrich(rawAnalysisResult, normalizedEnrichment);
+      setFinalCatalogData(merged);
+      setResultMode("deep");
     } catch (err) {
       console.error("[enrich] unexpected_frontend_error", err);
       setEnrichmentError("深度圖鑑資料暫時無法取得");
@@ -496,19 +753,22 @@ export default function Home() {
                     type="button"
                     disabled={isEnriching || !analysisResult || !rawAnalysisResult}
                     onClick={() => void handleUnlockEnrichment()}
-                    className="min-h-10 w-full rounded-full border border-amber-300 bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-200 px-4 py-2 text-sm font-medium text-amber-900 shadow-[0_0_15px_rgba(251,191,36,0.35)] transition-all hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-75"
+                    className="min-h-10 rounded-full border border-amber-300 bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-200 px-4 py-2 text-sm font-medium text-amber-900 shadow-[0_0_15px_rgba(251,191,36,0.35)] transition-all hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-75 flex items-center justify-center"
                   >
                     {isEnriching ? (
-                      <span className="inline-flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center gap-2 leading-none">
                         <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white" />
                         發掘更多品種特性...
                       </span>
                     ) : enrichmentResult ? (
                       "已解鎖深度圖鑑"
                     ) : (
-                      "深度鑑定"
+                      "✨ 解鎖深度圖鑑"
                     )}
                   </button>
+                  <p className="mt-2 text-center text-xs text-gray-500">
+                    解鎖程序將會以目前顯示的「品種」、「品牌/農園」和「產地」作為既定事實進行推演。
+                  </p>
                   {enrichmentError ? (
                     <p className="mt-1 text-xs text-red-600 text-right">{enrichmentError}</p>
                   ) : null}
@@ -546,31 +806,56 @@ export default function Home() {
                   {analysisError}
                 </div>
               ) : hasAnalyzed && analysisResult ? (
-                <div className="rounded-2xl border border-gray-200 bg-white px-5 py-6 shadow-sm sm:px-6">
-                  {fruitProfileRows.length > 0 ? (
-                    <dl className="divide-y divide-gray-100">
-                      {fruitProfileRows.map((row) => (
-                        <div
-                          key={row.label}
-                          className="grid grid-cols-[6.25rem_1fr] gap-x-3 py-3 sm:grid-cols-[7.5rem_1fr] sm:py-4"
-                        >
-                          <dt className="text-xs font-medium tracking-wide text-gray-400">{row.label}</dt>
-                          <dd className="text-sm leading-6 text-gray-900 sm:text-base">
-                            {row.label === "品種特點" && row.bulletItems && row.bulletItems.length > 0 ? (
-                              <ul className="list-disc space-y-1 pl-4 font-medium text-gray-800 marker:text-gray-400">
-                                {row.bulletItems.map((item) => (
-                                  <li key={item}>{item}</li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <span className="font-semibold">{row.value}</span>
-                            )}
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
+                <div key={resultMode} className="rounded-2xl transition-opacity duration-300 ease-out">
+                  {resultMode === "deep" && finalCatalogData && finalCatalogData.enrichment ? (
+                    <DeepCatalogCard merged={finalCatalogData} />
                   ) : (
-                    <p className="text-sm text-gray-500">目前未擷取到可展示的水果資訊。</p>
+                    <div className="rounded-2xl border border-gray-200 bg-white px-5 py-6 shadow-sm sm:px-6">
+                      {fruitProfileRows.length > 0 ? (
+                        <dl className="divide-y divide-gray-100">
+                          {fruitProfileRows.map((row) => (
+                            <div
+                              key={row.label}
+                              className="grid grid-cols-[6.25rem_1fr] gap-x-3 py-3 sm:grid-cols-[7.5rem_1fr] sm:py-4"
+                            >
+                              <dt className="text-xs font-medium tracking-wide text-gray-400">{row.label}</dt>
+                              <dd className="text-sm leading-6 text-gray-900 sm:text-base">
+                                {row.label === "品種特點" && row.bulletItems && row.bulletItems.length > 0 ? (
+                                  <ul className="list-disc space-y-1 pl-4 font-medium text-gray-800 marker:text-gray-400">
+                                    {row.bulletItems.map((item) => (
+                                      <li key={item}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : analysisResult && row.label === "推定品種" ? (
+                                  <InlineEditableAnalysisField
+                                    field="possible_variety_display"
+                                    value={
+                                      analysisResult.possible_variety_display ||
+                                      analysisResult.possible_variety_original ||
+                                      ""
+                                    }
+                                  />
+                                ) : analysisResult && row.label === "品牌 / 農園" ? (
+                                  <InlineEditableAnalysisField
+                                    field="brand_or_farm_display"
+                                    value={analysisResult.brand_or_farm_display}
+                                  />
+                                ) : analysisResult && row.label === "產地" ? (
+                                  <InlineEditableAnalysisField
+                                    field="origin_display"
+                                    value={analysisResult.origin_display}
+                                  />
+                                ) : (
+                                  <span className="font-semibold">{row.value}</span>
+                                )}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      ) : (
+                        <p className="text-sm text-gray-500">目前未擷取到可展示的水果資訊。</p>
+                      )}
+                    </div>
                   )}
                 </div>
               ) : (
@@ -579,86 +864,6 @@ export default function Home() {
                 </div>
               )}
             </div>
-
-            {hasAnalyzed && analysisResult && enrichmentResult ? (
-              <div className="mt-4 rounded-2xl border border-amber-100 bg-gradient-to-b from-amber-50 to-white p-4 shadow-sm sm:p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-base font-semibold text-amber-900">✨ 深度圖鑑資料</h3>
-                  {(() => {
-                    const rarityBadge = getRarityBadge(enrichmentResult.rarity_hint);
-                    return (
-                      <span
-                        className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${rarityBadge.className}`}
-                      >
-                        {rarityBadge.tier} · {rarityBadge.label}
-                      </span>
-                    );
-                  })()}
-                </div>
-
-                {enrichmentResult.catalog_summary ? (
-                  <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700">
-                    {enrichmentResult.catalog_summary}
-                  </p>
-                ) : null}
-
-                {enrichmentResult.market_position ? (
-                  <p className="mt-2 text-xs text-gray-500">{enrichmentResult.market_position}</p>
-                ) : null}
-
-                {enrichmentResult.standout_sensory_traits.length > 0 ? (
-                  <section className="mt-4">
-                    <p className="text-xs font-medium tracking-wide text-gray-400">感官特點</p>
-                    <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-800">
-                      {enrichmentResult.standout_sensory_traits.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </section>
-                ) : null}
-
-                {enrichmentResult.background_lore.length > 0 ? (
-                  <section className="mt-4">
-                    <p className="text-xs font-medium tracking-wide text-gray-400">圖鑑故事</p>
-                    <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-stone-600">
-                      {enrichmentResult.background_lore.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </section>
-                ) : null}
-
-                {enrichmentResult.practical_guide.length > 0 ? (
-                  <section className="mt-4">
-                    <p className="text-xs font-medium tracking-wide text-gray-400">實用指南</p>
-                    <ul className="mt-2 space-y-1.5 text-sm text-gray-700">
-                      {enrichmentResult.practical_guide.map((item) => (
-                        <li key={item} className="flex items-start gap-2">
-                          <span>{getGuideIcon(item)}</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                ) : null}
-
-                {enrichmentResult.season ? (
-                  <section className="mt-4">
-                    <p className="text-xs font-medium tracking-wide text-gray-400">產季</p>
-                    <p className="mt-1 text-sm text-gray-700">{enrichmentResult.season}</p>
-                  </section>
-                ) : null}
-
-                {enrichmentResult.common_regions.length > 0 ? (
-                  <section className="mt-4">
-                    <p className="text-xs font-medium tracking-wide text-gray-400">常見產地</p>
-                    <p className="mt-1 text-sm text-gray-700">
-                      {enrichmentResult.common_regions.join("、")}
-                    </p>
-                  </section>
-                ) : null}
-              </div>
-            ) : null}
           </section>
         </div>
       </main>

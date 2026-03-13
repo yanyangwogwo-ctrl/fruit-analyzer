@@ -18,6 +18,7 @@ function errorResponse(
 
 function parseEnrichRequestBody(raw: unknown): {
   payload?: FruitEnrichmentPayload;
+  confirmedFacts?: string[];
   error?: "invalid_enrichment_payload";
   detail?: string;
 } {
@@ -38,6 +39,8 @@ function parseEnrichRequestBody(raw: unknown): {
     ocr_package_info: strArr(body.ocr_package_info),
   };
 
+  const confirmedFacts = strArr(body.confirmed_facts);
+
   const missingFields: string[] = [];
   if (!payload.fruit_category) missingFields.push("fruit_category");
   if (!payload.confirmed_variety) missingFields.push("confirmed_variety");
@@ -49,7 +52,7 @@ function parseEnrichRequestBody(raw: unknown): {
     };
   }
 
-  return { payload };
+  return { payload, confirmedFacts };
 }
 
 function stripMarkdownCodeFence(text: string): string {
@@ -111,7 +114,16 @@ function isCompletelyUnusable(result: FruitEnrichmentResult): boolean {
   );
 }
 
-function buildPrompt(payload: FruitEnrichmentPayload): string {
+function buildPrompt(payload: FruitEnrichmentPayload, confirmedFacts: string[]): string {
+  const confirmedBlock =
+    confirmedFacts.length > 0
+      ? `The following facts are explicitly confirmed by the user. You MUST use them as the absolute foundation. Do NOT re-identify or contradict them.
+Confirmed Facts:
+${confirmedFacts.map((item) => `- ${item}`).join("\n")}
+
+`
+      : "";
+
   return `ROLE:
 You are a world-class pomologist and fruit encyclopedia editor.
 Your task is to enrich an already-confirmed fruit variety entry with structured catalog knowledge.
@@ -126,7 +138,7 @@ IMPORTANT:
 Input context:
 ${JSON.stringify(payload)}
 
-LANGUAGE RULES:
+${confirmedBlock}LANGUAGE RULES:
 - All user-visible text fields MUST be written in Traditional Chinese used in Hong Kong.
 - Do NOT use Simplified Chinese.
 - Do NOT use English for descriptive content.
@@ -224,7 +236,9 @@ export async function POST(request: Request) {
 
     let text = "";
     try {
-      const result = await model.generateContent([{ text: buildPrompt(parsed.payload) }]);
+      const result = await model.generateContent([
+        { text: buildPrompt(parsed.payload, parsed.confirmedFacts ?? []) },
+      ]);
       const candidate = (result.response as { candidates?: Array<{ finishReason?: string }> }).candidates?.[0];
       if (candidate?.finishReason === "MAX_TOKENS") {
         console.error("[enrich] API output truncated due to MAX_TOKENS limit");

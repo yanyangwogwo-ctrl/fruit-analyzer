@@ -1718,6 +1718,14 @@ export default function CatalogPage() {
                         </ul>
                       </section>
                     ) : null}
+                    {selectedEntry.brand_or_farm_display ? (
+                      <section>
+                        <p className="text-xs font-medium tracking-wide text-gray-400">品牌／農園</p>
+                        <p className="mt-1 text-sm leading-6 text-gray-700">
+                          {toHongKongTerminology(selectedEntry.brand_or_farm_display)}
+                        </p>
+                      </section>
+                    ) : null}
                     {detailSeason ? (
                       <section>
                         <p className="text-xs font-medium tracking-wide text-gray-400">產季</p>

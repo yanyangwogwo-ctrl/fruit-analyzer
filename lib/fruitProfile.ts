@@ -84,5 +84,12 @@ export function buildFruitProfileRows(result: AnalysisResult): FruitProfileRow[]
     { label: "產季", value: result.season_months },
   ];
 
-  return rows.filter((row) => row.value.trim().length > 0);
+  // Always keep key editable fields (推定品種 / 品牌 / 農園 / 產地),
+  // even when their values are currently empty, so that the user can fill them in.
+  return rows.filter((row) => {
+    if (row.label === "推定品種" || row.label === "品牌 / 農園" || row.label === "產地") {
+      return true;
+    }
+    return row.value.trim().length > 0;
+  });
 }

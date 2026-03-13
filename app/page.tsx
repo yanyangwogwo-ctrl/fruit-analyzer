@@ -51,10 +51,6 @@ async function compressImageToDataUrl(file: File): Promise<string> {
   }
 }
 
-function normalizeTag(tag: string): string {
-  return tag.trim().replace(/^#+/, "");
-}
-
 function handleToggleRating(current: number | null, nextValue: number): number | null {
   return current === nextValue ? null : nextValue;
 }
@@ -124,8 +120,7 @@ function hasSaveDraftChanged(
     baseline.origin_display !== current.origin_display ||
     baseline.status !== current.status ||
     baseline.rating !== current.rating ||
-    baseline.tasting_note !== current.tasting_note ||
-    baseline.tags.join("|") !== current.tags.join("|")
+    baseline.tasting_note !== current.tasting_note
   );
 }
 
@@ -170,7 +165,6 @@ export default function Home() {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [saveDraft, setSaveDraft] = useState<CatalogSaveDraft | null>(null);
   const [saveDraftBaseline, setSaveDraftBaseline] = useState<CatalogSaveDraft | null>(null);
-  const [saveTagInput, setSaveTagInput] = useState("");
 
   const fruitProfileRows = analysisResult ? buildFruitProfileRows(analysisResult) : [];
   const currentAnalysisSignature = useMemo(
@@ -200,7 +194,6 @@ export default function Home() {
     const draft = createCatalogSaveDraftFromAnalysis(rawAnalysisResult);
     setSaveDraft(draft);
     setSaveDraftBaseline(draft);
-    setSaveTagInput("");
     setIsSaveModalOpen(true);
   };
 
@@ -223,7 +216,6 @@ export default function Home() {
         setIsSaveModalOpen(false);
         setSaveDraft(null);
         setSaveDraftBaseline(null);
-        setSaveTagInput("");
         return;
       }
 
@@ -244,7 +236,6 @@ export default function Home() {
       setIsSaveModalOpen(false);
       setSaveDraft(null);
       setSaveDraftBaseline(null);
-      setSaveTagInput("");
       clearDraft();
     } catch {
       setToastMessage("加入圖鑑失敗，請稍後再試");
@@ -748,59 +739,6 @@ export default function Home() {
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                 />
               </label>
-
-              <div className="space-y-2">
-                <span className="text-xs text-gray-500">分類標籤</span>
-                {saveDraft.tags.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {saveDraft.tags.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() =>
-                          setSaveDraft({
-                            ...saveDraft,
-                            tags: saveDraft.tags.filter((item) => item !== tag),
-                          })
-                        }
-                        className="min-h-9 rounded-full bg-gray-100 px-3 text-xs text-gray-600"
-                      >
-                        #{tag} ×
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400">尚未設定標籤</p>
-                )}
-                <div className="flex gap-2">
-                  <input
-                    value={saveTagInput}
-                    onChange={(e) => setSaveTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key !== "Enter") return;
-                      e.preventDefault();
-                      const normalized = normalizeTag(saveTagInput);
-                      if (!normalized || saveDraft.tags.includes(normalized)) return;
-                      setSaveDraft({ ...saveDraft, tags: [...saveDraft.tags, normalized] });
-                      setSaveTagInput("");
-                    }}
-                    placeholder="新增標籤"
-                    className="min-h-10 flex-1 rounded-lg border border-gray-200 px-3 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const normalized = normalizeTag(saveTagInput);
-                      if (!normalized || saveDraft.tags.includes(normalized)) return;
-                      setSaveDraft({ ...saveDraft, tags: [...saveDraft.tags, normalized] });
-                      setSaveTagInput("");
-                    }}
-                    className="min-h-10 rounded-full bg-black px-4 text-sm text-white"
-                  >
-                    加入
-                  </button>
-                </div>
-              </div>
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
@@ -810,7 +748,6 @@ export default function Home() {
                   setIsSaveModalOpen(false);
                   setSaveDraft(null);
                   setSaveDraftBaseline(null);
-                  setSaveTagInput("");
                 }}
                 className="min-h-10 rounded-lg px-3 text-sm text-gray-500 hover:bg-gray-100"
               >

@@ -67,8 +67,6 @@ type AnalyzeResult = {
   brand_or_farm_display: string;
   grade_display: string;
   season_months: string;
-  summary_zh_tw: string;
-  notes: string;
   confidence_level: string;
   detected_text_lines: string[];
 };
@@ -97,8 +95,6 @@ function normalizeAnalyzeResult(raw: unknown): AnalyzeResult {
     brand_or_farm_display: str(obj.brand_or_farm_display),
     grade_display: str(obj.grade_display),
     season_months: str(obj.season_months),
-    summary_zh_tw: str(obj.summary_zh_tw),
-    notes: str(obj.notes),
     confidence_level: str(obj.confidence_level),
     detected_text_lines: strArr(obj.detected_text_lines),
   };

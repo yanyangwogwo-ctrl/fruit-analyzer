@@ -7,7 +7,6 @@ import packageJson from "../../package.json";
 import {
   catalogDB,
   createCatalogEntryFromAnalysis,
-  generateDefaultTags,
   getEntryImages,
   normalizeCatalogEntry,
   type CatalogStatus,
@@ -35,9 +34,7 @@ type QuickAddDraft = {
   possible_variety_display: string;
   origin_display: string;
   season_months: string;
-  summary_zh_tw: string;
   status: CatalogStatus;
-  tags: string[];
   rating: number | null;
   tasting_note: string;
   include: boolean;
@@ -55,13 +52,8 @@ type FullEditDraft = {
   possible_variety_display: string;
   origin_display: string;
   season_months: string;
-  summary_zh_tw: string;
   images: string[];
 };
-
-function normalizeTag(tag: string): string {
-  return tag.trim().replace(/^#+/, "");
-}
 
 function getCardTitleClass(title: string, gridCols: CatalogGridCols): string {
   const length = Array.from(title).length;
@@ -177,12 +169,6 @@ function parseBatchNames(input: string): string[] {
     .filter(Boolean);
 }
 
-function mergeTags(base: string[], suggested: string[]): string[] {
-  return Array.from(
-    new Set([...base, ...suggested.map((tag) => normalizeTag(tag)).filter(Boolean)])
-  ).slice(0, 6);
-}
-
 function areSameImages(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((item, index) => item === b[index]);
@@ -247,8 +233,6 @@ function createQuickAddAnalysisResult(input: {
   variety_characteristics: string;
   origin_display: string;
   season_months: string;
-  summary_zh_tw: string;
-  notes: string;
   confidence_level: string;
 }): Record<string, unknown> {
   const normalizedCore = normalizeCatalogCoreFields({
@@ -271,8 +255,6 @@ function createQuickAddAnalysisResult(input: {
     brand_or_farm_display: "",
     grade_display: "",
     season_months: input.season_months,
-    summary_zh_tw: input.summary_zh_tw,
-    notes: input.notes,
     confidence_level: input.confidence_level,
     detected_text_lines: [],
   };
@@ -295,7 +277,6 @@ function makeFullEditDraft(entry: FruitCatalogEntry): FullEditDraft {
     possible_variety_display: entry.possible_variety_display,
     origin_display: entry.origin_display,
     season_months: entry.season_months,
-    summary_zh_tw: entry.summary_zh_tw,
     images: getEntryImages(entry),
   };
 }
@@ -375,7 +356,6 @@ export default function CatalogPage() {
   const [selectedEntry, setSelectedEntry] = useState<FruitCatalogEntry | null>(null);
   const [selectedCountry, setSelectedCountry] = useState("全部");
   const [sortMode, setSortMode] = useState<SortMode>("latest");
-  const [quickTagInput, setQuickTagInput] = useState("");
   const [quickReviewInput, setQuickReviewInput] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<FullEditDraft | null>(null);
@@ -383,7 +363,6 @@ export default function CatalogPage() {
   const [quickAddMode, setQuickAddMode] = useState<QuickAddMode>("single");
   const [quickAddInput, setQuickAddInput] = useState("");
   const [quickAddSingleDraft, setQuickAddSingleDraft] = useState<QuickAddDraft | null>(null);
-  const [quickAddSingleTagInput, setQuickAddSingleTagInput] = useState("");
   const [isGeneratingSingle, setIsGeneratingSingle] = useState(false);
   const [quickAddBatchInput, setQuickAddBatchInput] = useState("");
   const [quickAddBatchRows, setQuickAddBatchRows] = useState<QuickAddDraft[]>([]);
@@ -437,7 +416,7 @@ export default function CatalogPage() {
 
   const isAnyOverlayOpen = Boolean(selectedEntry) || isQuickAddModalOpen;
   const selectedEnrichment = selectedEntry?.enrichment;
-  const detailSummary = selectedEnrichment?.catalog_summary || selectedEntry?.summary_zh_tw || "";
+  const detailSummary = selectedEnrichment?.catalog_summary || "";
   const detailSeason = selectedEnrichment?.season || selectedEntry?.season_months || "";
   const detailRarityBadge = selectedEnrichment ? getRarityBadge(selectedEnrichment.rarity_hint) : null;
 
@@ -608,14 +587,12 @@ export default function CatalogPage() {
     setEntries((prev) => prev.filter((item) => item.id !== entry.id));
     setSelectedEntry((prev) => (prev?.id === entry.id ? null : prev));
     resetEditArtifacts();
-    setQuickTagInput("");
     setQuickReviewInput("");
   };
 
   const handleOpenDetail = (entry: FruitCatalogEntry) => {
     setSelectedEntry(entry);
     resetEditArtifacts();
-    setQuickTagInput("");
   };
 
   const handleQuickStatusChange = async (status: CatalogStatus) => {
@@ -635,27 +612,6 @@ export default function CatalogPage() {
     await applyPartialUpdate(selectedEntry, { rating: null }, true);
   };
 
-  const handleQuickRemoveTag = async (tag: string) => {
-    if (!selectedEntry) return;
-    await applyPartialUpdate(
-      selectedEntry,
-      { tags: selectedEntry.tags.filter((item) => item !== tag) },
-      true
-    );
-  };
-
-  const handleQuickAddTag = async () => {
-    if (!selectedEntry) return;
-    const normalized = normalizeTag(quickTagInput);
-    if (!normalized) return;
-    if (selectedEntry.tags.includes(normalized)) {
-      setQuickTagInput("");
-      return;
-    }
-    await applyPartialUpdate(selectedEntry, { tags: [...selectedEntry.tags, normalized] }, true);
-    setQuickTagInput("");
-  };
-
   const handleQuickReviewBlur = async () => {
     if (!selectedEntry) return;
     if (quickReviewInput === selectedEntry.tasting_note) return;
@@ -671,14 +627,12 @@ export default function CatalogPage() {
   const handleCloseDetail = () => {
     setSelectedEntry(null);
     resetEditArtifacts();
-    setQuickTagInput("");
     setQuickReviewInput("");
   };
 
   const handleCancelEdit = () => {
     if (!selectedEntry) return;
     resetEditArtifacts();
-    setQuickTagInput("");
     setQuickReviewInput(selectedEntry.tasting_note ?? "");
   };
 
@@ -692,7 +646,6 @@ export default function CatalogPage() {
       selectedEntry.possible_variety_display !== draft.possible_variety_display ||
       selectedEntry.origin_display !== draft.origin_display ||
       selectedEntry.season_months !== draft.season_months ||
-      selectedEntry.summary_zh_tw !== draft.summary_zh_tw ||
       !areSameImages(currentImages, nextImages);
 
     await applyPartialUpdate(
@@ -702,7 +655,6 @@ export default function CatalogPage() {
         possible_variety_display: draft.possible_variety_display,
         origin_display: draft.origin_display,
         season_months: draft.season_months,
-        summary_zh_tw: draft.summary_zh_tw,
         images: nextImages,
         image_data: nextImages[0] ?? "",
       },
@@ -714,7 +666,6 @@ export default function CatalogPage() {
   const resetQuickAddState = () => {
     setQuickAddInput("");
     setQuickAddSingleDraft(null);
-    setQuickAddSingleTagInput("");
     setQuickAddBatchInput("");
     setQuickAddBatchRows([]);
     setQuickAddBatchProgress(null);
@@ -740,8 +691,6 @@ export default function CatalogPage() {
     response: Record<string, unknown>
   ): QuickAddDraft => {
     const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
-    const strArr = (value: unknown) =>
-      Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
     const normalizedCore = normalizeCatalogCoreFields({
       fruit_category_display: str(response.fruit_category_display),
@@ -753,7 +702,6 @@ export default function CatalogPage() {
     const possibleVariety = normalizedCore.possible_variety_display || enteredName;
     const originDisplay = normalizedCore.origin_display;
     const seasonMonths = str(response.season_months);
-    const summary = str(response.summary_zh_tw);
     const analysisResult = createQuickAddAnalysisResult({
       entered_name: enteredName,
       fruit_category_display: fruitCategory,
@@ -764,17 +712,8 @@ export default function CatalogPage() {
       variety_characteristics: str(response.variety_characteristics),
       origin_display: originDisplay,
       season_months: seasonMonths,
-      summary_zh_tw: summary,
-      notes: str(response.notes),
       confidence_level: str(response.confidence_level),
     });
-    const tags = mergeTags(
-      generateDefaultTags({
-        fruit_category_display: fruitCategory,
-        origin_display: originDisplay,
-      }),
-      strArr(response.suggested_tags)
-    );
 
     const placeholder = createPlaceholderImageDataUrl(possibleVariety || enteredName, fruitCategory);
 
@@ -786,9 +725,7 @@ export default function CatalogPage() {
       possible_variety_display: possibleVariety,
       origin_display: originDisplay,
       season_months: seasonMonths,
-      summary_zh_tw: summary,
       status: catalogMode,
-      tags,
       rating: null,
       tasting_note: "",
       include: true,
@@ -822,7 +759,6 @@ export default function CatalogPage() {
       possible_variety_original: normalizedCore.possible_variety_original,
       origin_display: normalizedCore.origin_display,
       season_months: draftValue.season_months,
-      summary_zh_tw: draftValue.summary_zh_tw,
     };
     const entryInput = createCatalogEntryFromAnalysis({
       images: draftValue.images,
@@ -832,7 +768,6 @@ export default function CatalogPage() {
         status: draftValue.status,
         possible_variety_display: normalizedCore.possible_variety_display,
         origin_display: normalizedCore.origin_display,
-        tags: draftValue.tags,
         rating: draftValue.status === "tried" ? draftValue.rating : null,
         tasting_note: draftValue.tasting_note,
       },
@@ -857,7 +792,6 @@ export default function CatalogPage() {
     try {
       const response = await requestQuickAdd(name);
       setQuickAddSingleDraft(createQuickAddDraftFromResponse(name, response));
-      setQuickAddSingleTagInput("");
     } catch (error) {
       setQuickAddError(error instanceof Error ? error.message : "產生草稿失敗");
       setQuickAddSingleDraft(null);
@@ -911,9 +845,7 @@ export default function CatalogPage() {
           possible_variety_display: name,
           origin_display: "",
           season_months: "",
-          summary_zh_tw: "",
           status: catalogMode,
-          tags: [],
           rating: null,
           tasting_note: "",
           include: false,
@@ -1289,17 +1221,6 @@ export default function CatalogPage() {
                         className="min-h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm"
                       />
                     </label>
-                    <label className="block space-y-1">
-                      <span className="text-xs text-gray-500">摘要</span>
-                      <textarea
-                        value={quickAddSingleDraft.summary_zh_tw}
-                        onChange={(e) =>
-                          setQuickAddSingleDraft({ ...quickAddSingleDraft, summary_zh_tw: e.target.value })
-                        }
-                        rows={3}
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
-                      />
-                    </label>
                     {quickAddSingleDraft.status === "tried" ? (
                       <div>
                         <p className="text-xs text-gray-500">評分</p>
@@ -1340,65 +1261,6 @@ export default function CatalogPage() {
                         className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
                       />
                     </label>
-
-                    <div className="space-y-2">
-                      <p className="text-xs text-gray-500">分類標籤</p>
-                      {quickAddSingleDraft.tags.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {quickAddSingleDraft.tags.map((tag) => (
-                            <button
-                              key={tag}
-                              type="button"
-                              onClick={() =>
-                                setQuickAddSingleDraft({
-                                  ...quickAddSingleDraft,
-                                  tags: quickAddSingleDraft.tags.filter((item) => item !== tag),
-                                })
-                              }
-                              className="min-h-8 rounded-full bg-white px-2.5 text-xs text-gray-600"
-                            >
-                              {toHongKongTerminology(tag)} ×
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-gray-400">尚未設定標籤</p>
-                      )}
-                      <div className="flex gap-2">
-                        <input
-                          value={quickAddSingleTagInput}
-                          onChange={(e) => setQuickAddSingleTagInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key !== "Enter") return;
-                            e.preventDefault();
-                            const normalized = normalizeTag(quickAddSingleTagInput);
-                            if (!normalized || quickAddSingleDraft.tags.includes(normalized)) return;
-                            setQuickAddSingleDraft({
-                              ...quickAddSingleDraft,
-                              tags: [...quickAddSingleDraft.tags, normalized],
-                            });
-                            setQuickAddSingleTagInput("");
-                          }}
-                          placeholder="新增標籤"
-                          className="min-h-9 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const normalized = normalizeTag(quickAddSingleTagInput);
-                            if (!normalized || quickAddSingleDraft.tags.includes(normalized)) return;
-                            setQuickAddSingleDraft({
-                              ...quickAddSingleDraft,
-                              tags: [...quickAddSingleDraft.tags, normalized],
-                            });
-                            setQuickAddSingleTagInput("");
-                          }}
-                          className="min-h-9 rounded-lg bg-black px-3 text-xs text-white"
-                        >
-                          加入
-                        </button>
-                      </div>
-                    </div>
                   </div>
                 ) : null}
 
@@ -1713,15 +1575,6 @@ export default function CatalogPage() {
                       className="min-h-10 w-full rounded-lg border border-gray-200 px-3"
                     />
                   </label>
-                  <label className="block space-y-1 text-sm">
-                    <span className="text-gray-500">摘要</span>
-                    <textarea
-                      value={draft.summary_zh_tw}
-                      onChange={(e) => setDraft({ ...draft, summary_zh_tw: e.target.value })}
-                      rows={3}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
-                    />
-                  </label>
                 </div>
               ) : (
                 <>
@@ -1776,45 +1629,6 @@ export default function CatalogPage() {
                             {statusLabel(status)}
                           </button>
                         ))}
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <p className="text-xs text-gray-400">分類標籤</p>
-                      {selectedEntry.tags.length > 0 ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {selectedEntry.tags.map((tag) => (
-                            <button
-                              key={tag}
-                              type="button"
-                              onClick={() => void handleQuickRemoveTag(tag)}
-                              className="min-h-9 rounded-full bg-gray-100 px-3 text-xs text-gray-600"
-                            >
-                              {toHongKongTerminology(tag)} ×
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="mt-2 text-xs text-gray-400">尚未設定標籤</p>
-                      )}
-                      <div className="mt-2 flex gap-2">
-                        <input
-                          value={quickTagInput}
-                          onChange={(e) => setQuickTagInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key !== "Enter") return;
-                            e.preventDefault();
-                            void handleQuickAddTag();
-                          }}
-                          placeholder="新增標籤"
-                          className="min-h-10 flex-1 rounded-lg border border-gray-200 px-3 text-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => void handleQuickAddTag()}
-                          className="min-h-10 rounded-full bg-black px-4 text-sm text-white"
-                        >
-                          加入
-                        </button>
                       </div>
                     </div>
                     <div className="mt-3">

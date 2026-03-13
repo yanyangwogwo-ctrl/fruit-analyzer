@@ -13,10 +13,7 @@ type QuickAddAIResult = {
   variety_characteristics: string;
   origin_display: string;
   season_months: string;
-  summary_zh_tw: string;
-  suggested_tags: string[];
   confidence_level: string;
-  notes: string;
 };
 
 const PROMPT = `You are a conservative fruit catalog assistant.
@@ -27,8 +24,7 @@ Rules:
 2) Do NOT invent brand names, farms, or product lines.
 3) Do NOT pretend certainty for ambiguous names.
 4) Preserve user intent: if unclear, keep possible_variety_display close to the user input.
-5) suggested_tags should be short practical tags (max 4), no hashtags.
-6) Output JSON only in the exact schema below.
+5) Output JSON only in the exact schema below.
 
 Schema:
 {
@@ -40,21 +36,12 @@ Schema:
   "variety_characteristics": "",
   "origin_display": "",
   "season_months": "",
-  "summary_zh_tw": "",
-  "suggested_tags": [],
-  "confidence_level": "",
-  "notes": ""
+  "confidence_level": ""
 }`;
-
-function normalizeTag(value: string): string {
-  return value.trim().replace(/^#+/, "");
-}
 
 function normalizeQuickAddResult(raw: unknown): QuickAddAIResult {
   const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
-  const strArr = (value: unknown) =>
-    Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
   const normalizedCore = normalizeCatalogCoreFields({
     fruit_category_display: str(obj.fruit_category_display),
@@ -72,13 +59,7 @@ function normalizeQuickAddResult(raw: unknown): QuickAddAIResult {
     variety_characteristics: str(obj.variety_characteristics),
     origin_display: normalizedCore.origin_display,
     season_months: str(obj.season_months),
-    summary_zh_tw: str(obj.summary_zh_tw),
-    suggested_tags: Array.from(new Set(strArr(obj.suggested_tags).map(normalizeTag).filter(Boolean))).slice(
-      0,
-      4
-    ),
     confidence_level: str(obj.confidence_level),
-    notes: str(obj.notes),
   };
 }
 

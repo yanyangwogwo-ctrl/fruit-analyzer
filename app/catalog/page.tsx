@@ -568,8 +568,8 @@ export default function CatalogPage() {
     gridCols === 4
       ? "flex min-h-0 flex-1 flex-col gap-1 p-1"
       : "flex min-h-0 flex-1 flex-col gap-1 px-1.5 py-1.5";
-  const starRowClass = gridCols === 4 ? "mt-auto flex min-h-[1.75rem] items-center justify-center" : "mt-auto flex min-h-6 items-center justify-center";
-  const starSizeClass = gridCols === 4 ? "text-[15px] sm:text-[17px]" : "text-[18px] sm:text-[20px]";
+  const starRowClass = gridCols === 4 ? "mt-auto flex min-h-[1.5rem] items-center justify-center pb-0.5" : "mt-auto flex min-h-6 items-center justify-center pb-0.5";
+  const starSizeClass = gridCols === 4 ? "text-[13px] sm:text-[14px]" : "text-[16px] sm:text-[18px]";
 
   const updateEntryInState = (updatedEntry: FruitCatalogEntry) => {
     setEntries((prev) => prev.map((entry) => (entry.id === updatedEntry.id ? updatedEntry : entry)));
@@ -999,7 +999,7 @@ export default function CatalogPage() {
                               thumbnailCrop={entry.thumbnailCrop ?? undefined}
                             />
                             <div className={cardBodyClass}>
-                              <div className="flex min-h-0 flex-grow flex-col justify-center">
+                              <div className="flex min-h-0 flex-grow flex-col justify-center pt-1">
                                 <p
                                   className={`break-words text-center font-semibold text-gray-900 ${getCardTitleClass(localizedTitle, gridCols)}`}
                                   title={localizedTitle}

@@ -728,58 +728,66 @@ export default function Home() {
             ref={resultSectionRef}
             className="mt-4 w-full scroll-mt-36 rounded-2xl bg-gray-50 p-4 text-left shadow-sm sm:mt-5 sm:p-5"
           >
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-gray-900">分析結果</h2>
+            <div className="flex w-full flex-col gap-2">
+              <div className="flex w-full items-start justify-between gap-3">
+                <h2 className="shrink-0 whitespace-nowrap text-lg font-semibold text-gray-900">
+                  分析結果
+                </h2>
+                {hasAnalyzed && analysisResult ? (
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <button
+                      type="button"
+                      disabled={
+                        isSavingCatalog ||
+                        !rawAnalysisResult ||
+                        analysisImages.length === 0 ||
+                        isCurrentSavedInSession ||
+                        hasImageChangesAfterAnalyze
+                      }
+                      onClick={openSaveModal}
+                      className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium shadow-md transition ${
+                        hasImageChangesAfterAnalyze
+                          ? "cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700"
+                          : isCurrentSavedInSession
+                            ? "cursor-not-allowed border border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "bg-black text-white hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300"
+                      }`}
+                    >
+                      {hasImageChangesAfterAnalyze
+                        ? "請先重新鑑定"
+                        : isSavingCatalog
+                          ? "加入中…"
+                          : isCurrentSavedInSession
+                            ? "已加入圖鑑"
+                            : "＋ 加入圖鑑"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isEnriching || !analysisResult || !rawAnalysisResult}
+                      onClick={() => void handleUnlockEnrichment()}
+                      className="min-h-10 rounded-full border border-amber-300 bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-200 px-4 py-2 text-sm font-medium text-amber-900 shadow-[0_0_15px_rgba(251,191,36,0.35)] transition-all hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-75 flex items-center justify-center"
+                    >
+                      {isEnriching ? (
+                        <span className="inline-flex items-center justify-center gap-2 leading-none">
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white" />
+                          發掘更多品種特性...
+                        </span>
+                      ) : enrichmentResult ? (
+                        "已深入了解品種"
+                      ) : (
+                        "✨ 深入了解品種"
+                      )}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
               {hasAnalyzed && analysisResult ? (
-                <div className="flex flex-col items-end gap-2">
-                  <button
-                    type="button"
-                    disabled={
-                      isSavingCatalog ||
-                      !rawAnalysisResult ||
-                      analysisImages.length === 0 ||
-                      isCurrentSavedInSession ||
-                      hasImageChangesAfterAnalyze
-                    }
-                    onClick={openSaveModal}
-                    className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium shadow-md transition ${
-                      hasImageChangesAfterAnalyze
-                        ? "cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700"
-                        : isCurrentSavedInSession
-                          ? "cursor-not-allowed border border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "bg-black text-white hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300"
-                    }`}
-                  >
-                    {hasImageChangesAfterAnalyze
-                      ? "請先重新鑑定"
-                      : isSavingCatalog
-                        ? "加入中…"
-                        : isCurrentSavedInSession
-                          ? "已加入圖鑑"
-                          : "＋ 加入圖鑑"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isEnriching || !analysisResult || !rawAnalysisResult}
-                    onClick={() => void handleUnlockEnrichment()}
-                    className="min-h-10 rounded-full border border-amber-300 bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-200 px-4 py-2 text-sm font-medium text-amber-900 shadow-[0_0_15px_rgba(251,191,36,0.35)] transition-all hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-75 flex items-center justify-center"
-                  >
-                    {isEnriching ? (
-                      <span className="inline-flex items-center justify-center gap-2 leading-none">
-                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white" />
-                        發掘更多品種特性...
-                      </span>
-                    ) : enrichmentResult ? (
-                      "已深入了解品種"
-                    ) : (
-                      "✨ 深入了解品種"
-                    )}
-                  </button>
-                  <p className="mt-2 text-center text-xs text-gray-500">
+                <div className="w-full text-right">
+                  <p className="inline-block max-w-[85%] text-xs text-gray-500">
                     解鎖程序將會以目前顯示的「品種」、「品牌/農園」和「產地」作為既定事實進行推演。
                   </p>
                   {enrichmentError ? (
-                    <p className="mt-1 text-xs text-red-600 text-right">{enrichmentError}</p>
+                    <p className="mt-1 text-xs text-red-600">{enrichmentError}</p>
                   ) : null}
                 </div>
               ) : null}

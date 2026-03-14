@@ -784,7 +784,7 @@ export default function Home() {
               {hasAnalyzed && analysisResult ? (
                 <div className="w-full text-right">
                   <p className="inline-block max-w-[85%] text-xs text-gray-500">
-                    解鎖程序將會以目前顯示的「品種」、「品牌/農園」和「產地」作為既定事實進行推演。
+                    以目前顯示的「品種」、「品牌/農園」和「產地」作為既定事實進行更深度推演
                   </p>
                   {enrichmentError ? (
                     <p className="mt-1 text-xs text-red-600">{enrichmentError}</p>

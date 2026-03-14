@@ -566,8 +566,8 @@ export default function CatalogPage() {
       : "grid grid-cols-3 gap-1.5 sm:grid-cols-3 sm:gap-2";
   const cardBodyClass =
     gridCols === 4
-      ? "flex min-h-[3.5rem] flex-col gap-1 p-1 sm:min-h-14"
-      : "flex min-h-[4rem] flex-col gap-1 px-1.5 py-1.5 sm:min-h-16";
+      ? "flex min-h-0 flex-1 flex-col gap-1 p-1"
+      : "flex min-h-0 flex-1 flex-col gap-1 px-1.5 py-1.5";
   const starRowClass = gridCols === 4 ? "mt-auto flex min-h-[1.75rem] items-center justify-center" : "mt-auto flex min-h-6 items-center justify-center";
   const starSizeClass = gridCols === 4 ? "text-[15px] sm:text-[17px]" : "text-[18px] sm:text-[20px]";
 
@@ -985,12 +985,12 @@ export default function CatalogPage() {
                       return (
                         <article
                           key={entry.id}
-                          className="overflow-hidden rounded-[12px] border border-gray-200 bg-white shadow-sm"
+                          className="flex h-full flex-col overflow-hidden rounded-[12px] border border-gray-200 bg-white shadow-sm"
                         >
                           <button
                             type="button"
                             onClick={() => handleOpenDetail(entry)}
-                            className="block w-full text-center"
+                            className="flex h-full w-full flex-col text-center"
                           >
                             <FruitCardImage
                               src={coverImage}

@@ -19,7 +19,11 @@ import {
   normalizeCatalogCoreFields,
   normalizeCategoryForGrouping,
 } from "@/lib/normalizer";
-import { getGuideIcon } from "@/lib/enrichment";
+import {
+  getGuideIcon,
+  normalizeEnrichmentResultLenient,
+  type FruitEnrichmentResult,
+} from "@/lib/enrichment";
 import { getRarityBadge } from "@/lib/rarity";
 import { getCatalogGridCols, type CatalogGridCols } from "@/lib/settings";
 import FruitCardImage from "@/app/components/FruitCardImage";
@@ -57,6 +61,7 @@ type FullEditDraft = {
   images: string[];
   imageDisplayMode: "cover" | "contain";
   thumbnailCrop: ThumbnailCrop | null;
+  enrichment: FruitEnrichmentResult;
 };
 
 function getCardTitleClass(title: string, gridCols: CatalogGridCols): string {
@@ -284,7 +289,21 @@ function makeFullEditDraft(entry: FruitCatalogEntry): FullEditDraft {
     images: getEntryImages(entry),
     imageDisplayMode: entry.imageDisplayMode ?? "cover",
     thumbnailCrop: entry.thumbnailCrop ?? null,
+    enrichment: normalizeEnrichmentResultLenient(entry.enrichment ?? {}),
   };
+}
+
+function areSameEnrichment(a: FruitEnrichmentResult, b: FruitEnrichmentResult): boolean {
+  return (
+    JSON.stringify(a.standout_sensory_traits) === JSON.stringify(b.standout_sensory_traits) &&
+    a.season === b.season &&
+    JSON.stringify(a.common_regions) === JSON.stringify(b.common_regions) &&
+    a.rarity_hint === b.rarity_hint &&
+    a.market_position === b.market_position &&
+    JSON.stringify(a.background_lore) === JSON.stringify(b.background_lore) &&
+    JSON.stringify(a.practical_guide) === JSON.stringify(b.practical_guide) &&
+    a.catalog_summary === b.catalog_summary
+  );
 }
 
 async function createThumbnailDataUrl(file: File): Promise<string> {
@@ -660,6 +679,8 @@ export default function CatalogPage() {
         selectedEntry.thumbnailCrop.cropX === draft.thumbnailCrop.cropX &&
         selectedEntry.thumbnailCrop.cropY === draft.thumbnailCrop.cropY &&
         selectedEntry.thumbnailCrop.zoom === draft.thumbnailCrop.zoom);
+    const currentEnrichment = normalizeEnrichmentResultLenient(selectedEntry.enrichment ?? {});
+    const enrichmentEqual = areSameEnrichment(currentEnrichment, draft.enrichment);
     const changed =
       selectedEntry.fruit_category_display !== draft.fruit_category_display ||
       selectedEntry.possible_variety_display !== draft.possible_variety_display ||
@@ -667,6 +688,7 @@ export default function CatalogPage() {
       selectedEntry.season_months !== draft.season_months ||
       (selectedEntry.imageDisplayMode ?? "cover") !== draft.imageDisplayMode ||
       !cropEqual ||
+      !enrichmentEqual ||
       !areSameImages(currentImages, nextImages);
 
     await applyPartialUpdate(
@@ -680,6 +702,7 @@ export default function CatalogPage() {
         image_data: nextImages[0] ?? "",
         imageDisplayMode: draft.imageDisplayMode,
         thumbnailCrop: draft.thumbnailCrop,
+        enrichment: draft.enrichment,
       },
       changed
     );
@@ -1650,6 +1673,149 @@ export default function CatalogPage() {
                       className="min-h-10 w-full rounded-lg border border-gray-200 px-3"
                     />
                   </label>
+
+                  <div className="border-t border-gray-200 pt-4">
+                    <p className="mb-3 text-sm font-medium text-gray-700">品種補充（深度圖鑑）</p>
+                    <p className="mb-3 text-xs text-gray-500">
+                      以下為選填，一行一項。儲存時不會套用 AI 格式限制，以您的編輯為準。
+                    </p>
+                    <div className="space-y-3">
+                      <label className="block space-y-1 text-sm">
+                        <span className="text-gray-500">感官特點（一行一項）</span>
+                        <textarea
+                          value={draft.enrichment.standout_sensory_traits.join("\n")}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              enrichment: {
+                                ...draft.enrichment,
+                                standout_sensory_traits: e.target.value
+                                  .split(/\n/)
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                              },
+                            })
+                          }
+                          rows={3}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block space-y-1 text-sm">
+                        <span className="text-gray-500">圖鑑故事（一行一項）</span>
+                        <textarea
+                          value={draft.enrichment.background_lore.join("\n")}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              enrichment: {
+                                ...draft.enrichment,
+                                background_lore: e.target.value
+                                  .split(/\n/)
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                              },
+                            })
+                          }
+                          rows={2}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block space-y-1 text-sm">
+                        <span className="text-gray-500">實用指南（一行一項）</span>
+                        <textarea
+                          value={draft.enrichment.practical_guide.join("\n")}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              enrichment: {
+                                ...draft.enrichment,
+                                practical_guide: e.target.value
+                                  .split(/\n/)
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                              },
+                            })
+                          }
+                          rows={2}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block space-y-1 text-sm">
+                        <span className="text-gray-500">常見產地（一行一項）</span>
+                        <textarea
+                          value={draft.enrichment.common_regions.join("\n")}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              enrichment: {
+                                ...draft.enrichment,
+                                common_regions: e.target.value
+                                  .split(/\n/)
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                              },
+                            })
+                          }
+                          rows={2}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block space-y-1 text-sm">
+                        <span className="text-gray-500">產季（深度圖鑑）</span>
+                        <input
+                          value={draft.enrichment.season}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              enrichment: { ...draft.enrichment, season: e.target.value },
+                            })
+                          }
+                          className="min-h-10 w-full rounded-lg border border-gray-200 px-3"
+                        />
+                      </label>
+                      <label className="block space-y-1 text-sm">
+                        <span className="text-gray-500">市場定位</span>
+                        <input
+                          value={draft.enrichment.market_position}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              enrichment: { ...draft.enrichment, market_position: e.target.value },
+                            })
+                          }
+                          className="min-h-10 w-full rounded-lg border border-gray-200 px-3"
+                        />
+                      </label>
+                      <label className="block space-y-1 text-sm">
+                        <span className="text-gray-500">品種摘要</span>
+                        <textarea
+                          value={draft.enrichment.catalog_summary}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              enrichment: { ...draft.enrichment, catalog_summary: e.target.value },
+                            })
+                          }
+                          rows={2}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block space-y-1 text-sm">
+                        <span className="text-gray-500">稀有度（可自訂，例如：mass_market、premium_variety）</span>
+                        <input
+                          value={draft.enrichment.rarity_hint}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              enrichment: { ...draft.enrichment, rarity_hint: e.target.value },
+                            })
+                          }
+                          placeholder="mass_market"
+                          className="min-h-10 w-full rounded-lg border border-gray-200 px-3"
+                        />
+                      </label>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <>

@@ -8,11 +8,12 @@ export const ENRICHMENT_RARITY_HINTS = [
 
 export type FruitRarityHint = (typeof ENRICHMENT_RARITY_HINTS)[number];
 
+/** Allowed for user edits; AI still uses enum values. */
 export type FruitEnrichmentResult = {
   standout_sensory_traits: string[];
   season: string;
   common_regions: string[];
-  rarity_hint: FruitRarityHint;
+  rarity_hint: FruitRarityHint | string;
   market_position: string;
   background_lore: string[];
   practical_guide: string[];
@@ -40,6 +41,7 @@ function normalizeStringArray(value: unknown): string[] {
     .filter((item) => item.length > 0);
 }
 
+/** Strict: for AI output only. Enforces enum and array filters. */
 export function normalizeEnrichmentResult(raw: unknown): FruitEnrichmentResult {
   const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const rarity = normalizeString(obj.rarity_hint);
@@ -52,6 +54,35 @@ export function normalizeEnrichmentResult(raw: unknown): FruitEnrichmentResult {
     background_lore: normalizeStringArray(obj.background_lore),
     practical_guide: normalizeStringArray(obj.practical_guide),
     catalog_summary: normalizeString(obj.catalog_summary),
+  };
+}
+
+function toArrayFromUnknown(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => (typeof item === "string" ? item.trim() : String(item).trim())).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+/** Lenient: for user edits and DB load. No enum/length constraints; arrays from newline-separated text. */
+export function normalizeEnrichmentResultLenient(raw: unknown): FruitEnrichmentResult {
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const rarity = typeof obj.rarity_hint === "string" ? obj.rarity_hint.trim() : "";
+  return {
+    standout_sensory_traits: toArrayFromUnknown(obj.standout_sensory_traits),
+    season: typeof obj.season === "string" ? obj.season.trim() : "",
+    common_regions: toArrayFromUnknown(obj.common_regions),
+    rarity_hint: rarity || "mass_market",
+    market_position: typeof obj.market_position === "string" ? obj.market_position.trim() : "",
+    background_lore: toArrayFromUnknown(obj.background_lore),
+    practical_guide: toArrayFromUnknown(obj.practical_guide),
+    catalog_summary: typeof obj.catalog_summary === "string" ? obj.catalog_summary.trim() : "",
   };
 }
 

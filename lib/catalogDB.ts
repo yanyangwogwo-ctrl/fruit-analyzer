@@ -1,6 +1,10 @@
 import Dexie, { type Table } from "dexie";
 import { normalizeAnalysisResult } from "@/lib/fruitProfile";
-import { normalizeEnrichmentResult, type FruitEnrichmentResult } from "@/lib/enrichment";
+import {
+  normalizeEnrichmentResult,
+  normalizeEnrichmentResultLenient,
+  type FruitEnrichmentResult,
+} from "@/lib/enrichment";
 import {
   normalizeAnalysisRecordFields,
   normalizeCatalogCoreFields,
@@ -106,7 +110,7 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
   const rating = normalizeRating(raw.rating);
   const enrichment =
     raw.enrichment && typeof raw.enrichment === "object"
-      ? normalizeEnrichmentResult(raw.enrichment)
+      ? normalizeEnrichmentResultLenient(raw.enrichment)
       : undefined;
 
   const normalizedCore = normalizeCatalogCoreFields({

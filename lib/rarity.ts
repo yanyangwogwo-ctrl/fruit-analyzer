@@ -7,13 +7,17 @@ export function getRarityBadge(hint: unknown): {
   label: string;
   className: string;
 } {
-  const normalizedHint: FruitRarityHint =
-    hint === "regional_specialty" ||
-    hint === "premium_variety" ||
-    hint === "luxury_gift" ||
-    hint === "auction_grade"
-      ? hint
+  const str = typeof hint === "string" ? hint.trim() : "";
+  const knownHint: FruitRarityHint =
+    str === "regional_specialty" ||
+    str === "premium_variety" ||
+    str === "luxury_gift" ||
+    str === "auction_grade"
+      ? str
       : "mass_market";
+  const isCustom = str && knownHint === "mass_market" && str !== "mass_market";
+  const normalizedHint: FruitRarityHint = isCustom ? "mass_market" : knownHint;
+  const customLabel = isCustom ? str : null;
 
   if (normalizedHint === "auction_grade") {
     return {
@@ -45,7 +49,7 @@ export function getRarityBadge(hint: unknown): {
   }
   return {
     tier: "N",
-    label: "國民日常",
+    label: customLabel ?? "國民日常",
     className: "text-gray-500 bg-gray-50 border-gray-200",
   };
 }

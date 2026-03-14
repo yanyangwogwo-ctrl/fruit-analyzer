@@ -892,8 +892,17 @@ export default function CatalogPage() {
               正在載入圖鑑⋯⋯
             </div>
           ) : modeEntries.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
-              {catalogMode === "want" ? "暫時未有想試水果" : "暫時未有已試水果"}
+            <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center">
+              <p className="text-sm font-medium text-gray-800">
+                {catalogMode === "want"
+                  ? "你還沒有想試的水果"
+                  : "你還沒有記錄吃過的水果"}
+              </p>
+              <p className="mt-2 text-sm text-gray-500 max-w-xs mx-auto leading-relaxed">
+                {catalogMode === "want"
+                  ? "可以到「鑑定」頁辨識水果再加入，或按下方「+快速加入」加入第一個想試水果"
+                  : "可以到「鑑定」頁辨識水果再加入，或按下方「+快速加入」記錄第一個吃過的水果。"}
+              </p>
             </div>
           ) : groupedSections.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">

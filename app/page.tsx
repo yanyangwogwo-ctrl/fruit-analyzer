@@ -657,7 +657,16 @@ export default function Home() {
 
       <main className="min-h-screen bg-white text-black">
         <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center px-4 pb-[calc(env(safe-area-inset-bottom)+6.5rem)] pt-5 text-center sm:px-6 sm:pt-6">
-          <section className="w-full rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm sm:p-5">
+          <div className="w-full text-left">
+            <h1 className="text-xl font-semibold text-gray-900">AI品種鑑定</h1>
+            <ul className="mt-2 space-y-1 text-sm text-gray-600">
+              <li>① 拍攝或上傳水果圖片（圖片中須有水果名稱或包裝）</li>
+              <li>② 查看AI的品種分析結果</li>
+              <li>③ 加入想試或個人圖鑑</li>
+            </ul>
+          </div>
+
+          <section className="mt-4 w-full rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm sm:p-5">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">加入 1–3 張圖片，再開始鑑定</h2>
@@ -761,9 +770,9 @@ export default function Home() {
                         發掘更多品種特性...
                       </span>
                     ) : enrichmentResult ? (
-                      "已解鎖深度圖鑑"
+                      "已深入了解品種"
                     ) : (
-                      "✨ 解鎖深度圖鑑"
+                      "✨ 深入了解品種"
                     )}
                   </button>
                   <p className="mt-2 text-center text-xs text-gray-500">

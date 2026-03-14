@@ -17,6 +17,7 @@ import {
   KNOWN_COUNTRIES,
   classifyOriginCountry,
   normalizeCatalogCoreFields,
+  normalizeCatalogCoreFieldsLenient,
   normalizeCategoryForGrouping,
 } from "@/lib/normalizer";
 import {
@@ -581,7 +582,7 @@ export default function CatalogPage() {
     markEdited: boolean
   ) => {
     if (typeof entry.id !== "number") return;
-    const normalizedCore = normalizeCatalogCoreFields({
+    const normalizedCore = normalizeCatalogCoreFieldsLenient({
       fruit_category_display: partial.fruit_category_display ?? entry.fruit_category_display,
       possible_variety_display: partial.possible_variety_display ?? entry.possible_variety_display,
       possible_variety_original: partial.possible_variety_original ?? entry.possible_variety_original,

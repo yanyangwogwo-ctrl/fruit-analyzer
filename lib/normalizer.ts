@@ -322,6 +322,27 @@ export function normalizeCatalogCoreFields(
   };
 }
 
+/** Lenient: for manual edits only. Trim and coerce to string; no bracket/origin/region reformatting. */
+export function normalizeCatalogCoreFieldsLenient(input: {
+  fruit_category_display?: unknown;
+  possible_variety_display?: unknown;
+  possible_variety_original?: unknown;
+  origin_display?: unknown;
+}): {
+  fruit_category_display: string;
+  possible_variety_display: string;
+  possible_variety_original: string;
+  origin_display: string;
+} {
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : v != null ? String(v).trim() : "");
+  return {
+    fruit_category_display: str(input.fruit_category_display),
+    possible_variety_display: str(input.possible_variety_display),
+    possible_variety_original: str(input.possible_variety_original),
+    origin_display: str(input.origin_display),
+  };
+}
+
 export function normalizeAnalysisRecordFields(
   input: Record<string, unknown>
 ): Record<string, unknown> {

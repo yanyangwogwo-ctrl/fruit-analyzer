@@ -8,6 +8,7 @@ import {
 import {
   normalizeAnalysisRecordFields,
   normalizeCatalogCoreFields,
+  normalizeCatalogCoreFieldsLenient,
 } from "@/lib/normalizer";
 
 export type CatalogStatus = "want" | "tried";
@@ -113,7 +114,7 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
       ? normalizeEnrichmentResultLenient(raw.enrichment)
       : undefined;
 
-  const normalizedCore = normalizeCatalogCoreFields({
+  const normalizedCore = normalizeCatalogCoreFieldsLenient({
     fruit_category_display:
       str(raw.fruit_category_display) || normalizedAnalysis.fruit_category_display,
     possible_variety_display:

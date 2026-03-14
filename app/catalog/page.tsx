@@ -566,10 +566,10 @@ export default function CatalogPage() {
       : "grid grid-cols-3 gap-1.5 sm:grid-cols-3 sm:gap-2";
   const cardBodyClass =
     gridCols === 4
-      ? "flex h-14 flex-col justify-center gap-1 p-1"
-      : "flex h-16 flex-col justify-center gap-1 px-1.5 py-1.5";
-  const starRowClass = gridCols === 4 ? "flex h-4 items-center justify-center" : "flex h-5 items-center justify-center";
-  const starSizeClass = gridCols === 4 ? "text-[10px] sm:text-[11px]" : "text-[15px]";
+      ? "flex min-h-[3.5rem] flex-col gap-1 p-1 sm:min-h-14"
+      : "flex min-h-[4rem] flex-col gap-1 px-1.5 py-1.5 sm:min-h-16";
+  const starRowClass = gridCols === 4 ? "mt-auto flex min-h-[1.75rem] items-center justify-center" : "mt-auto flex min-h-6 items-center justify-center";
+  const starSizeClass = gridCols === 4 ? "text-[15px] sm:text-[17px]" : "text-[18px] sm:text-[20px]";
 
   const updateEntryInState = (updatedEntry: FruitCatalogEntry) => {
     setEntries((prev) => prev.map((entry) => (entry.id === updatedEntry.id ? updatedEntry : entry)));
@@ -999,12 +999,14 @@ export default function CatalogPage() {
                               thumbnailCrop={entry.thumbnailCrop ?? undefined}
                             />
                             <div className={cardBodyClass}>
-                              <p
-                                className={`break-words text-center font-semibold text-gray-900 ${getCardTitleClass(localizedTitle, gridCols)}`}
-                                title={localizedTitle}
-                              >
-                                {localizedTitle}
-                              </p>
+                              <div className="flex min-h-0 flex-grow flex-col justify-center">
+                                <p
+                                  className={`break-words text-center font-semibold text-gray-900 ${getCardTitleClass(localizedTitle, gridCols)}`}
+                                  title={localizedTitle}
+                                >
+                                  {localizedTitle}
+                                </p>
+                              </div>
                               <div className={starRowClass}>
                                 {entry.rating != null ? (
                                   <RatingStars rating={entry.rating} sizeClass={starSizeClass} />

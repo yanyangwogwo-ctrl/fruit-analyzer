@@ -32,6 +32,10 @@ export type FruitCatalogEntry = {
   tasting_note: string;
   is_edited: boolean;
   enrichment?: FruitEnrichmentResult;
+  /** "cover" = fill card; "contain" = full image + blur background. Default cover. */
+  imageDisplayMode?: "cover" | "contain";
+  /** Crop for thumbnail: cropX/cropY 0–100, zoom >= 1 (cover) or >= 0.5 (contain). null = no crop. */
+  thumbnailCrop?: { cropX: number; cropY: number; zoom: number } | null;
 };
 
 class FruitCatalogDB extends Dexie {
@@ -120,6 +124,20 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
     image_data: str(raw.image_data),
   });
   const coverImage = normalizedImages[0] ?? "";
+  const imageDisplayMode = raw.imageDisplayMode === "contain" ? "contain" : "cover";
+  const rawCrop = raw.thumbnailCrop;
+  const thumbnailCrop =
+    rawCrop &&
+    typeof rawCrop === "object" &&
+    typeof (rawCrop as Record<string, unknown>).cropX === "number" &&
+    typeof (rawCrop as Record<string, unknown>).cropY === "number" &&
+    typeof (rawCrop as Record<string, unknown>).zoom === "number"
+      ? {
+          cropX: (rawCrop as { cropX: number }).cropX,
+          cropY: (rawCrop as { cropY: number }).cropY,
+          zoom: Math.max(0.5, (rawCrop as { zoom: number }).zoom),
+        }
+      : undefined;
 
   return {
     id: num(raw.id) ?? undefined,
@@ -148,6 +166,8 @@ export function normalizeCatalogEntry(raw: Record<string, unknown>): FruitCatalo
     tasting_note: str(raw.tasting_note),
     is_edited: bool(raw.is_edited),
     enrichment,
+    imageDisplayMode,
+    thumbnailCrop,
   };
 }
 
@@ -225,6 +245,8 @@ export function createCatalogEntryFromAnalysis(input: {
     tasting_note: input.overrides?.tasting_note ?? draftDefaults.tasting_note,
     is_edited: input.is_edited ?? false,
     enrichment,
+    imageDisplayMode: "cover",
+    thumbnailCrop: undefined,
   };
 }
 

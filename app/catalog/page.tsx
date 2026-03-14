@@ -22,6 +22,8 @@ import {
 import { getGuideIcon } from "@/lib/enrichment";
 import { getRarityBadge } from "@/lib/rarity";
 import { getCatalogGridCols, type CatalogGridCols } from "@/lib/settings";
+import FruitCardImage from "@/app/components/FruitCardImage";
+import type { ThumbnailCrop } from "@/app/components/FruitCardImage";
 
 type SortMode = "latest" | "earliest" | "highest" | "lowest";
 type QuickAddMode = "single" | "batch";
@@ -53,6 +55,8 @@ type FullEditDraft = {
   origin_display: string;
   season_months: string;
   images: string[];
+  imageDisplayMode: "cover" | "contain";
+  thumbnailCrop: ThumbnailCrop | null;
 };
 
 function getCardTitleClass(title: string, gridCols: CatalogGridCols): string {
@@ -278,6 +282,8 @@ function makeFullEditDraft(entry: FruitCatalogEntry): FullEditDraft {
     origin_display: entry.origin_display,
     season_months: entry.season_months,
     images: getEntryImages(entry),
+    imageDisplayMode: entry.imageDisplayMode ?? "cover",
+    thumbnailCrop: entry.thumbnailCrop ?? null,
   };
 }
 
@@ -374,6 +380,12 @@ export default function CatalogPage() {
   const [isSortPickerOpen, setIsSortPickerOpen] = useState(false);
   const [isRegionPickerOpen, setIsRegionPickerOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [cropEditorOpen, setCropEditorOpen] = useState(false);
+  const [cropEditDraft, setCropEditDraft] = useState<ThumbnailCrop>({
+    cropX: 50,
+    cropY: 50,
+    zoom: 1,
+  });
   const [quickAddError, setQuickAddError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -576,6 +588,7 @@ export default function CatalogPage() {
   const resetEditArtifacts = () => {
     setIsEditing(false);
     setDraft(null);
+    setCropEditorOpen(false);
   };
 
   const handleDeleteEntry = async (entry: FruitCatalogEntry) => {
@@ -640,12 +653,20 @@ export default function CatalogPage() {
     if (!selectedEntry || !draft || typeof selectedEntry.id !== "number") return;
     const currentImages = getEntryImages(selectedEntry);
     const nextImages = draft.images.slice(0, 3);
-
+    const cropEqual =
+      (selectedEntry.thumbnailCrop == null && draft.thumbnailCrop == null) ||
+      (selectedEntry.thumbnailCrop != null &&
+        draft.thumbnailCrop != null &&
+        selectedEntry.thumbnailCrop.cropX === draft.thumbnailCrop.cropX &&
+        selectedEntry.thumbnailCrop.cropY === draft.thumbnailCrop.cropY &&
+        selectedEntry.thumbnailCrop.zoom === draft.thumbnailCrop.zoom);
     const changed =
       selectedEntry.fruit_category_display !== draft.fruit_category_display ||
       selectedEntry.possible_variety_display !== draft.possible_variety_display ||
       selectedEntry.origin_display !== draft.origin_display ||
       selectedEntry.season_months !== draft.season_months ||
+      (selectedEntry.imageDisplayMode ?? "cover") !== draft.imageDisplayMode ||
+      !cropEqual ||
       !areSameImages(currentImages, nextImages);
 
     await applyPartialUpdate(
@@ -657,6 +678,8 @@ export default function CatalogPage() {
         season_months: draft.season_months,
         images: nextImages,
         image_data: nextImages[0] ?? "",
+        imageDisplayMode: draft.imageDisplayMode,
+        thumbnailCrop: draft.thumbnailCrop,
       },
       changed
     );
@@ -919,11 +942,15 @@ export default function CatalogPage() {
             <div className="space-y-5">
               {groupedSections.map((section) => (
                 <section key={section.category}>
-                  <h3 className="mb-2.5 flex items-baseline gap-1.5">
-                    <span className="text-sm font-semibold text-gray-800">
+                  <h3 className="mb-2.5 flex items-baseline gap-1 text-base font-medium text-gray-500">
+                    <span>
+                      {catalogMode === "tried" ? "已試" : "想試"}
                       {toHongKongTerminology(section.category)}
                     </span>
-                    <span className="text-xs font-medium text-gray-400">({section.items.length})</span>
+                    <span className="px-0.5 text-lg font-bold text-gray-900">
+                      {section.items.length}
+                    </span>
+                    <span>種</span>
                   </h3>
                   <div className={gridClassName}>
                     {section.items.map((entry) => {
@@ -934,20 +961,19 @@ export default function CatalogPage() {
                       return (
                         <article
                           key={entry.id}
-                          className="overflow-hidden rounded-sm border border-gray-200 bg-white shadow-sm"
+                          className="overflow-hidden rounded-[12px] border border-gray-200 bg-white shadow-sm"
                         >
                           <button
                             type="button"
                             onClick={() => handleOpenDetail(entry)}
                             className="block w-full text-center"
                           >
-                            <div className="aspect-square w-full bg-gray-100">
-                              <img
-                                src={coverImage}
-                                alt={`${title}收藏圖鑑圖片`}
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
+                            <FruitCardImage
+                              src={coverImage}
+                              alt={`${title}收藏圖鑑圖片`}
+                              imageDisplayMode={entry.imageDisplayMode ?? "cover"}
+                              thumbnailCrop={entry.thumbnailCrop ?? undefined}
+                            />
                             <div className={cardBodyClass}>
                               <p
                                 className={`break-words text-center font-semibold text-gray-900 ${getCardTitleClass(localizedTitle, gridCols)}`}
@@ -1552,6 +1578,46 @@ export default function CatalogPage() {
                       </label>
                     ) : null}
                   </div>
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-500">圖片顯示方式</p>
+                    <div className="flex gap-4">
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="radio"
+                          name="imageDisplayMode"
+                          checked={draft.imageDisplayMode === "cover"}
+                          onChange={() => setDraft({ ...draft, imageDisplayMode: "cover" })}
+                          className="h-4 w-4"
+                        />
+                        <span className="text-sm">填滿卡片（推薦）</span>
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="radio"
+                          name="imageDisplayMode"
+                          checked={draft.imageDisplayMode === "contain"}
+                          onChange={() => setDraft({ ...draft, imageDisplayMode: "contain" })}
+                          className="h-4 w-4"
+                        />
+                        <span className="text-sm">保留完整圖片</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!draft) return;
+                        setCropEditDraft(
+                          draft.thumbnailCrop ?? { cropX: 50, cropY: 50, zoom: 1 }
+                        );
+                        setCropEditorOpen(true);
+                      }}
+                      className="rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-50"
+                    >
+                      調整縮圖
+                    </button>
+                  </div>
                   <label className="block space-y-1 text-sm">
                     <span className="text-gray-500">水果類別</span>
                     <input
@@ -1762,6 +1828,90 @@ export default function CatalogPage() {
                   刪除此圖鑑項目
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {cropEditorOpen && draft ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="crop-editor-title"
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-xl">
+            <h3 id="crop-editor-title" className="text-lg font-semibold">
+              調整縮圖
+            </h3>
+            <div className="mt-3 aspect-square w-full overflow-hidden rounded-[12px] bg-gray-100">
+              <FruitCardImage
+                src={draft.images[0] || createFallbackPlaceholderDataUrl()}
+                alt="縮圖預覽"
+                imageDisplayMode={draft.imageDisplayMode}
+                thumbnailCrop={cropEditDraft}
+              />
+            </div>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs text-gray-500">水平位置</label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={cropEditDraft.cropX}
+                  onChange={(e) =>
+                    setCropEditDraft({ ...cropEditDraft, cropX: Number(e.target.value) })
+                  }
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">垂直位置</label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={cropEditDraft.cropY}
+                  onChange={(e) =>
+                    setCropEditDraft({ ...cropEditDraft, cropY: Number(e.target.value) })
+                  }
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">縮放</label>
+                <input
+                  type="range"
+                  min={draft.imageDisplayMode === "contain" ? 0.5 : 1}
+                  max={3}
+                  step={0.05}
+                  value={cropEditDraft.zoom}
+                  onChange={(e) =>
+                    setCropEditDraft({ ...cropEditDraft, zoom: Number(e.target.value) })
+                  }
+                  className="w-full"
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCropEditorOpen(false)}
+                className="rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft({ ...draft, thumbnailCrop: cropEditDraft });
+                  setCropEditorOpen(false);
+                }}
+                className="rounded-full bg-black px-4 py-2 text-sm text-white hover:bg-gray-800"
+              >
+                確定
+              </button>
             </div>
           </div>
         </div>
